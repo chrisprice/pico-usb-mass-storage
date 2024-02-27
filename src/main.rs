@@ -81,6 +81,11 @@ fn main() -> ! {
         &mut pac.RESETS,
     );
 
+    defmt::timestamp!(
+        "{=u32}",
+        unsafe { &*pac::TIMER::PTR }.timerawl.read().bits()
+    );
+
     let usb_bus = UsbBusAllocator::new(bsp::hal::usb::UsbBus::new(
         pac.USBCTRL_REGS,
         pac.USBCTRL_DPRAM,
@@ -125,8 +130,6 @@ fn main() -> ! {
 fn process_command(
     mut command: Command<ScsiCommand, Scsi<BulkOnly<bsp::hal::usb::UsbBus, &mut [u8]>>>,
 ) -> Result<(), TransportError<BulkOnlyError>> {
-    info!("Handling: {}", command.kind);
-
     match command.kind {
         ScsiCommand::TestUnitReady { .. } => {
             command.pass();
@@ -211,7 +214,6 @@ fn process_command(
                 // Uncomment this in order to push data in chunks smaller than a USB packet.
                 // let end = min(start + USB_PACKET_SIZE as usize - 1, end);
 
-                info!("Data transfer >>>>>>>> [{}..{}]", start, end);
                 let count = command.write_data(&mut STORAGE[start..end])?;
                 STATE.storage_offset += count;
             } else {
@@ -225,7 +227,6 @@ fn process_command(
             if STATE.storage_offset != (len * BLOCK_SIZE) as usize {
                 let start = (BLOCK_SIZE * lba) as usize + STATE.storage_offset;
                 let end = (BLOCK_SIZE * lba) as usize + (BLOCK_SIZE * len) as usize;
-                info!("Data transfer <<<<<<<< [{}..{}]", start, end);
                 let count = command.read_data(&mut STORAGE[start..end])?;
                 STATE.storage_offset += count;
 
