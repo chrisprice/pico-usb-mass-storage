@@ -12,8 +12,7 @@ use rp_pico as bsp;
 
 use bsp::hal::{clocks::init_clocks_and_plls, pac, sio::Sio, watchdog::Watchdog};
 
-use usb_device::{class_prelude::*, prelude::*};
-use usbd_storage::{
+use pico_usb_mass_storage::usbd_storage::{
     subclass::{
         scsi::{Scsi, ScsiCommand},
         Command,
@@ -23,6 +22,7 @@ use usbd_storage::{
         TransportError,
     },
 };
+use usb_device::{class_prelude::*, prelude::*};
 
 /// Not necessarily `'static`. May reside in some special memory location
 static mut USB_TRANSPORT_BUF: MaybeUninit<[u8; 512]> = MaybeUninit::uninit();
@@ -94,11 +94,13 @@ fn main() -> ! {
         &mut pac.RESETS,
     ));
 
-    let mut scsi =
-        usbd_storage::subclass::scsi::Scsi::new(&usb_bus, USB_PACKET_SIZE, MAX_LUN, unsafe {
-            USB_TRANSPORT_BUF.assume_init_mut().as_mut_slice()
-        })
-        .unwrap();
+    let mut scsi = pico_usb_mass_storage::usbd_storage::subclass::scsi::Scsi::new(
+        &usb_bus,
+        USB_PACKET_SIZE,
+        MAX_LUN,
+        unsafe { USB_TRANSPORT_BUF.assume_init_mut().as_mut_slice() },
+    )
+    .unwrap();
 
     let mut usb_device = UsbDeviceBuilder::new(&usb_bus, UsbVidPid(0xabcd, 0xabcd))
         .manufacturer("Chris Price")
