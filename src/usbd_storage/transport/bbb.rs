@@ -5,11 +5,10 @@ use crate::usbd_storage::fmt::{info, trace};
 use crate::usbd_storage::transport::{CommandStatus, Transport, TransportError};
 use core::borrow::BorrowMut;
 use core::cmp::min;
-use usb_device::bus::{UsbBus, UsbBusAllocator};
-use usb_device::class::ControlIn;
+use embassy_usb::driver::Driver;
+use embassy_usb::Builder;
 use usb_device::class_prelude::DescriptorWriter;
 use usb_device::control::{Recipient, RequestType};
-use usb_device::endpoint::{Endpoint, In, Out};
 use usb_device::UsbError;
 
 /// Bulk Only Transport interface protocol
@@ -85,9 +84,9 @@ type BulkOnlyTransportResult<T> = Result<T, TransportError<BulkOnlyError>>;
 /// [read_data]: crate::transport::bbb::BulkOnly::read_data
 /// [write_data]: crate::transport::bbb::BulkOnly::write_data
 /// [try_write_data_all]: crate::transport::bbb::BulkOnly::try_write_data_all
-pub struct BulkOnly<'alloc, Bus: UsbBus, Buf: BorrowMut<[u8]>> {
-    in_ep: Endpoint<'alloc, Bus, In>,
-    out_ep: Endpoint<'alloc, Bus, Out>,
+pub struct BulkOnly<'d, D: Driver<'d>, Buf: BorrowMut<[u8]>> {
+    in_ep: D::EndpointIn,
+    out_ep: D::EndpointOut,
     buf: Buffer<Buf>,
     state: State,
     cbw: CommandBlockWrapper,
@@ -95,15 +94,15 @@ pub struct BulkOnly<'alloc, Bus: UsbBus, Buf: BorrowMut<[u8]>> {
     max_lun: u8,
 }
 
-impl<'alloc, Bus, Buf> BulkOnly<'alloc, Bus, Buf>
+impl<'d, D, Buf> BulkOnly<'d, D, Buf>
 where
-    Bus: UsbBus,
+    D: Driver<'d>,
     Buf: BorrowMut<[u8]>,
 {
     /// Creates a Bulk Only Transport instance
     ///
     /// # Arguments
-    /// * `alloc` - [UsbBusAllocator]
+    /// * `alloc` - [UsbDAllocator]
     /// * `packet_size` - Maximum USB packet size. Allowed values: 8,16,32,64
     /// * `max_lun` - The max index of the Logical Unit
     /// * `buf` - The underlying IO buffer. It is **required** to fit at least a `CBW` and/or a single
@@ -118,13 +117,13 @@ where
     ///
     /// [InvalidMaxLun]: crate::transport::bbb::BulkOnlyError::InvalidMaxLun
     /// [BufferTooSmall]: crate::transport::bbb::BulkOnlyError::BufferTooSmall
-    /// [UsbBusAllocator]: usb_device::bus::UsbBusAllocator
+    /// [UsbDAllocator]: usb_device::bus::UsbDAllocator
     pub fn new(
-        alloc: &'alloc UsbBusAllocator<Bus>,
+        alloc: &'d Builder<'d, D>,
         packet_size: u16,
         max_lun: u8,
         buf: Buf,
-    ) -> Result<BulkOnly<'alloc, Bus, Buf>, BulkOnlyError> {
+    ) -> Result<BulkOnly<'d, D, Buf>, BulkOnlyError> {
         if max_lun > 0x0F {
             return Err(BulkOnlyError::InvalidMaxLun);
         }
@@ -530,13 +529,13 @@ where
     }
 }
 
-impl<Bus, Buf> Transport for BulkOnly<'_, Bus, Buf>
+impl<'d, D, Buf> Transport<'d> for BulkOnly<'d, D, Buf>
 where
-    Bus: UsbBus,
+    D: Driver<'d>,
     Buf: BorrowMut<[u8]>,
 {
     const PROTO: u8 = TRANSPORT_BBB;
-    type Bus = Bus;
+    type Bus = D;
 
     fn get_endpoint_descriptors(&self, writer: &mut DescriptorWriter) -> Result<(), UsbError> {
         writer.endpoint(&self.in_ep)?;
@@ -551,7 +550,7 @@ where
         self.enter_state(State::Idle);
     }
 
-    fn control_in(&mut self, xfer: ControlIn<Self::Bus>) {
+    fn control_in(&mut self, xfer: <Self::Bus as Driver<'d>>::ControlPipe) {
         let req = xfer.request();
 
         // not interested in this request

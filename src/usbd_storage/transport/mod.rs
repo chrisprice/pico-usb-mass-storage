@@ -1,8 +1,7 @@
 //! USB Mass Storage transports
 
 use core::fmt::Debug;
-use usb_device::bus::UsbBus;
-use usb_device::class::ControlIn;
+use embassy_usb::driver::Driver;
 use usb_device::descriptor::DescriptorWriter;
 use usb_device::UsbError;
 
@@ -18,10 +17,10 @@ pub const TRANSPORT_VENDOR_SPECIFIC: u8 = 0xFF;
 /// defined in [subclass] module .
 ///
 /// [subclass]: crate::subclass
-pub trait Transport {
+pub trait Transport<'alloc> {
     /// Interface protocol code
     const PROTO: u8;
-    type Bus: UsbBus;
+    type Bus: Driver<'alloc>;
 
     /// Registers all required USB **endpoints** using a provided `writer`.
     fn get_endpoint_descriptors(&self, writer: &mut DescriptorWriter) -> Result<(), UsbError>;
@@ -30,7 +29,7 @@ pub trait Transport {
     fn reset(&mut self);
 
     /// Called when a control request is received with direction DeviceToHost.
-    fn control_in(&mut self, xfer: ControlIn<Self::Bus>);
+    fn control_in(&mut self, xfer: <Self::Bus as Driver<'alloc>>::ControlPipe);
 }
 
 /// Generic error type that could be used by [Transport] impls.

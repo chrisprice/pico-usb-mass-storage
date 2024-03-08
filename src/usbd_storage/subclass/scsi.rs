@@ -1,12 +1,12 @@
 //! USB SCSI
 
+use core::marker::PhantomData;
+
 use crate::usbd_storage::transport::Transport;
-use crate::usbd_storage::CLASS_MASS_STORAGE;
+use embassy_usb::driver::Driver;
+use embassy_usb::Builder;
 use num_enum::TryFromPrimitive;
 use usb_device::bus::InterfaceNumber;
-use usb_device::bus::UsbBus;
-use usb_device::class::{ControlIn, UsbClass};
-use usb_device::descriptor::DescriptorWriter;
 #[cfg(feature = "bbb")]
 use {
     crate::usbd_storage::fmt::debug,
@@ -14,7 +14,6 @@ use {
     crate::usbd_storage::transport::bbb::{BulkOnly, BulkOnlyError},
     crate::usbd_storage::transport::TransportError,
     core::borrow::BorrowMut,
-    usb_device::bus::UsbBusAllocator,
     usb_device::UsbError,
 };
 
@@ -155,7 +154,8 @@ fn parse_cb(cb: &[u8]) -> ScsiCommand {
 }
 
 /// SCSI USB Mass Storage subclass
-pub struct Scsi<T: Transport> {
+pub struct Scsi<'d, T: Transport<'d>> {
+    _phantom: core::marker::PhantomData<&'d T>,
     interface: InterfaceNumber,
     pub(crate) transport: T,
 }
@@ -164,7 +164,7 @@ pub struct Scsi<T: Transport> {
 ///
 /// [Bulk Only Transport]: crate::transport::bbb::BulkOnly
 #[cfg(feature = "bbb")]
-impl<'alloc, Bus: UsbBus + 'alloc, Buf: BorrowMut<[u8]>> Scsi<BulkOnly<'alloc, Bus, Buf>> {
+impl<'d, D: Driver<'d>, Buf: BorrowMut<[u8]>> Scsi<'d, BulkOnly<'d, D, Buf>> {
     /// Creates a SCSI over Bulk Only Transport instance
     ///
     /// # Arguments
@@ -185,12 +185,13 @@ impl<'alloc, Bus: UsbBus + 'alloc, Buf: BorrowMut<[u8]>> Scsi<BulkOnly<'alloc, B
     /// [BufferTooSmall]: crate::transport::bbb::BulkOnlyError::BufferTooSmall
     /// [UsbBusAllocator]: usb_device::bus::UsbBusAllocator
     pub fn new(
-        alloc: &'alloc UsbBusAllocator<Bus>,
+        alloc: &'d mut Builder<'d, D>,
         packet_size: u16,
         max_lun: u8,
         buf: Buf,
     ) -> Result<Self, BulkOnlyError> {
         BulkOnly::new(alloc, packet_size, max_lun, buf).map(|transport| Self {
+            _phantom: PhantomData::default(),
             interface: alloc.interface(),
             transport,
         })
@@ -205,7 +206,7 @@ impl<'alloc, Bus: UsbBus + 'alloc, Buf: BorrowMut<[u8]>> Scsi<BulkOnly<'alloc, B
     /// * `callback` - closure, in which the SCSI command is processed
     pub fn poll<F>(&mut self, mut callback: F) -> Result<(), UsbError>
     where
-        F: FnMut(Command<ScsiCommand, Scsi<BulkOnly<'alloc, Bus, Buf>>>),
+        F: FnMut(Command<ScsiCommand, Scsi<BulkOnly<'d, D, Buf>>>),
     {
         fn map_ignore<T>(res: Result<T, TransportError<BulkOnlyError>>) -> Result<(), UsbError> {
             match res {
@@ -258,34 +259,34 @@ impl<'alloc, Bus: UsbBus + 'alloc, Buf: BorrowMut<[u8]>> Scsi<BulkOnly<'alloc, B
     }
 }
 
-impl<Bus, T> UsbClass<Bus> for Scsi<T>
-where
-    Bus: UsbBus,
-    T: Transport<Bus = Bus>,
-{
-    fn get_configuration_descriptors(
-        &self,
-        writer: &mut DescriptorWriter,
-    ) -> usb_device::Result<()> {
-        writer.iad(
-            self.interface,
-            1,
-            CLASS_MASS_STORAGE,
-            SUBCLASS_SCSI,
-            T::PROTO,
-        )?;
-        writer.interface(self.interface, CLASS_MASS_STORAGE, SUBCLASS_SCSI, T::PROTO)?;
+// impl<Bus, T> UsbClass<Bus> for Scsi<T>
+// where
+//     Bus: UsbBus,
+//     T: Transport<Bus = Bus>,
+// {
+//     fn get_configuration_descriptors(
+//         &self,
+//         writer: &mut DescriptorWriter,
+//     ) -> usb_device::Result<()> {
+//         writer.iad(
+//             self.interface,
+//             1,
+//             CLASS_MASS_STORAGE,
+//             SUBCLASS_SCSI,
+//             T::PROTO,
+//         )?;
+//         writer.interface(self.interface, CLASS_MASS_STORAGE, SUBCLASS_SCSI, T::PROTO)?;
 
-        self.transport.get_endpoint_descriptors(writer)?;
+//         self.transport.get_endpoint_descriptors(writer)?;
 
-        Ok(())
-    }
+//         Ok(())
+//     }
 
-    fn reset(&mut self) {
-        self.transport.reset()
-    }
+//     fn reset(&mut self) {
+//         self.transport.reset()
+//     }
 
-    fn control_in(&mut self, xfer: ControlIn<Bus>) {
-        self.transport.control_in(xfer)
-    }
-}
+//     fn control_in(&mut self, xfer: ControlIn<Bus>) {
+//         self.transport.control_in(xfer)
+//     }
+// }

@@ -1,5 +1,7 @@
 //! USB Mass Storage subclasses
 
+use embassy_usb::driver::Driver;
+
 #[cfg(all(feature = "bbb", feature = "ufi"))]
 use crate::subclass::ufi::{Ufi, UfiCommand};
 #[cfg(all(feature = "bbb", feature = "scsi"))]
@@ -9,7 +11,6 @@ use {
     crate::usbd_storage::transport::bbb::{BulkOnly, BulkOnlyError},
     crate::usbd_storage::transport::{CommandStatus, TransportError},
     core::borrow::BorrowMut,
-    usb_device::bus::UsbBus,
 };
 
 #[cfg(feature = "scsi")]
@@ -66,8 +67,8 @@ impl<'a, 'alloc, Bus: UsbBus + 'alloc, Buf: BorrowMut<[u8]>>
 /// [SCSI]: crate::subclass::scsi::Scsi
 /// [Bulk Only Transport]: crate::transport::bbb::BulkOnly
 #[cfg(all(feature = "bbb", feature = "scsi"))]
-impl<'a, 'alloc, Bus: UsbBus + 'alloc, Buf: BorrowMut<[u8]>>
-    Command<'a, ScsiCommand, Scsi<BulkOnly<'alloc, Bus, Buf>>>
+impl<'a, 'd, D: Driver<'d>, Buf: BorrowMut<[u8]>>
+    Command<'a, ScsiCommand, Scsi<'d, BulkOnly<'d, D, Buf>>>
 {
     /// [crate::transport::bbb::BulkOnly::read_data]
     pub fn read_data(&mut self, dst: &mut [u8]) -> Result<usize, TransportError<BulkOnlyError>> {

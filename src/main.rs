@@ -11,6 +11,7 @@ use embassy_rp::{
 };
 use embassy_usb::{Builder, Config};
 use panic_probe as _;
+use pico_usb_mass_storage::usbd_storage::subclass::scsi::Scsi;
 
 bind_interrupts!(struct Irqs {
     USBCTRL_IRQ => InterruptHandler<USB>;
@@ -83,7 +84,13 @@ async fn main(_spawner: Spawner) {
         &mut control_buf,
     );
 
-    // let mut class = CdcAcmClass::new(&mut builder, &mut state, 64);
+    let mut scsi = pico_usb_mass_storage::usbd_storage::subclass::scsi::Scsi::new(
+        &mut builder,
+        USB_PACKET_SIZE,
+        MAX_LUN,
+        unsafe { USB_TRANSPORT_BUF.assume_init_mut().as_mut_slice() },
+    )
+    .unwrap();
 
     let mut usb = builder.build();
     let usb_fut = usb.run();
@@ -102,51 +109,6 @@ async fn main(_spawner: Spawner) {
     // join(usb_fut, echo_fut).await;
 
     usb_fut.await;
-
-    // let mut watchdog = Watchdog::new(pac.WATCHDOG);
-
-    // let external_xtal_freq_hz = 12_000_000u32;
-    // let clocks = init_clocks_and_plls(
-    //     external_xtal_freq_hz,
-    //     pac.XOSC,
-    //     pac.CLOCKS,
-    //     pac.PLL_SYS,
-    //     pac.PLL_USB,
-    //     &mut pac.RESETS,
-    //     &mut watchdog,
-    // )
-    // .ok()
-    // .unwrap();
-
-    // // work around errata 5
-    // let sio = Sio::new(pac.SIO);
-    // let _pins = bsp::Pins::new(
-    //     pac.IO_BANK0,
-    //     pac.PADS_BANK0,
-    //     sio.gpio_bank0,
-    //     &mut pac.RESETS,
-    // );
-
-    // defmt::timestamp!(
-    //     "{=u32}",
-    //     unsafe { &*pac::TIMER::PTR }.timerawl.read().bits()
-    // );
-
-    // let usb_bus = UsbBusAllocator::new(bsp::hal::usb::UsbBus::new(
-    //     pac.USBCTRL_REGS,
-    //     pac.USBCTRL_DPRAM,
-    //     clocks.usb_clock,
-    //     true,
-    //     &mut pac.RESETS,
-    // ));
-
-    // let mut scsi = pico_usb_mass_storage::usbd_storage::subclass::scsi::Scsi::new(
-    //     &usb_bus,
-    //     USB_PACKET_SIZE,
-    //     MAX_LUN,
-    //     unsafe { USB_TRANSPORT_BUF.assume_init_mut().as_mut_slice() },
-    // )
-    // .unwrap();
 
     // let mut usb_device = UsbDeviceBuilder::new(&usb_bus, UsbVidPid(0xabcd, 0xabcd))
     //     .manufacturer("Chris Price")
