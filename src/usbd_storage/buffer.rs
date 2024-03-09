@@ -60,10 +60,46 @@ impl<T: BorrowMut<[u8]>> Buffer<T> {
         })
     }
 
+    pub async fn write_all_async<E>(
+        &mut self,
+        max_count: usize,
+        overflow_err: E,
+        mut f: impl AsyncWriter<Error = E>,
+    ) -> Result<usize, E> {
+        if self.available_write() < max_count {
+            self.shift();
+            if self.available_write() < max_count {
+                return Err(overflow_err);
+            }
+        }
+
+        let inner = self.inner.borrow_mut();
+
+        f.write(&mut inner[self.wpos..(self.wpos + max_count)])
+            .await
+            .map(|count| {
+                let advance_by = min(count, inner.len() - self.wpos);
+                self.wpos += advance_by;
+                debug_assert!(self.wpos <= inner.len());
+                advance_by
+            })
+    }
+
     pub fn read<E>(&mut self, f: impl FnOnce(&mut [u8]) -> Result<usize, E>) -> Result<usize, E> {
         let boundary = self.rpos + self.available_read();
         let inner = self.inner.borrow_mut();
         f(&mut inner[self.rpos..boundary]).map(|count| {
+            let advance_by = min(count, self.available_read());
+            self.rpos += advance_by;
+            debug_assert!(self.rpos <= self.wpos);
+            advance_by
+        })
+    }
+
+    pub async fn read_async<E>(&mut self, mut f: impl AsyncReader<Error = E>) -> Result<usize, E> {
+        let boundary = self.rpos + self.available_read();
+        let inner = self.inner.borrow_mut();
+        f.read(&mut inner[self.rpos..boundary]).await.map(|count| {
             let advance_by = min(count, self.available_read());
             self.rpos += advance_by;
             debug_assert!(self.rpos <= self.wpos);
@@ -91,6 +127,15 @@ impl<T: BorrowMut<[u8]>> Buffer<T> {
             self.clean();
         }
     }
+}
+
+pub trait AsyncReader {
+    type Error;
+    async fn read(&mut self, buf: &mut [u8]) -> Result<usize, Self::Error>;
+}
+pub trait AsyncWriter {
+    type Error;
+    async fn write(&mut self, buf: &mut [u8]) -> Result<usize, Self::Error>;
 }
 
 #[cfg(test)]

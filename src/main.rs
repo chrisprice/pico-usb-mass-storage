@@ -74,7 +74,7 @@ async fn main(_spawner: Spawner) {
     let mut bos_descriptor = [0; 256];
     let mut control_buf = [0; 64];
 
-    let builder = Builder::new(
+    let mut builder = Builder::new(
         driver,
         config,
         &mut device_descriptor,

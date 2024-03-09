@@ -2,11 +2,11 @@
 
 use core::marker::PhantomData;
 
-use crate::usbd_storage::transport::Transport;
-use embassy_usb::driver::Driver;
+use crate::usbd_storage::{transport::Transport, CLASS_MASS_STORAGE};
+use embassy_usb::driver::EndpointError;
 use embassy_usb::Builder;
+use embassy_usb::{driver::Driver, types::InterfaceNumber};
 use num_enum::TryFromPrimitive;
-use usb_device::bus::InterfaceNumber;
 #[cfg(feature = "bbb")]
 use {
     crate::usbd_storage::fmt::debug,
@@ -14,7 +14,6 @@ use {
     crate::usbd_storage::transport::bbb::{BulkOnly, BulkOnlyError},
     crate::usbd_storage::transport::TransportError,
     core::borrow::BorrowMut,
-    usb_device::UsbError,
 };
 
 /// SCSI device subclass code
@@ -156,7 +155,7 @@ fn parse_cb(cb: &[u8]) -> ScsiCommand {
 /// SCSI USB Mass Storage subclass
 pub struct Scsi<'d, T: Transport<'d>> {
     _phantom: core::marker::PhantomData<&'d T>,
-    interface: InterfaceNumber,
+    _interface: InterfaceNumber,
     pub(crate) transport: T,
 }
 
@@ -184,15 +183,30 @@ impl<'d, D: Driver<'d>, Buf: BorrowMut<[u8]>> Scsi<'d, BulkOnly<'d, D, Buf>> {
     /// [InvalidMaxLun]: crate::transport::bbb::BulkOnlyError::InvalidMaxLun
     /// [BufferTooSmall]: crate::transport::bbb::BulkOnlyError::BufferTooSmall
     /// [UsbBusAllocator]: usb_device::bus::UsbBusAllocator
-    pub fn new(
-        alloc: &'d mut Builder<'d, D>,
+    pub fn new<'a>(
+        builder: &'a mut Builder<'d, D>,
         packet_size: u16,
         max_lun: u8,
         buf: Buf,
     ) -> Result<Self, BulkOnlyError> {
-        BulkOnly::new(alloc, packet_size, max_lun, buf).map(|transport| Self {
+        // TODO: wire up UsbClass::reset/ctrl_in
+        // TODO: all of this came from Transport::get_endpoint_descriptors
+        let mut func = builder.function(
+            CLASS_MASS_STORAGE,
+            SUBCLASS_SCSI,
+            <BulkOnly<D, Buf> as Transport>::PROTO,
+        );
+        let mut interface = func.interface();
+        let mut alt = interface.alt_setting(
+            CLASS_MASS_STORAGE,
+            SUBCLASS_SCSI,
+            <BulkOnly<D, Buf> as Transport>::PROTO,
+            None,
+        );
+
+        BulkOnly::new(&mut alt, packet_size, max_lun, buf).map(|transport| Self {
             _phantom: PhantomData::default(),
-            interface: alloc.interface(),
+            _interface: interface.interface_number(),
             transport,
         })
     }
@@ -204,21 +218,21 @@ impl<'d, D: Driver<'d>, Buf: BorrowMut<[u8]>> Scsi<'d, BulkOnly<'d, D, Buf>> {
     ///
     /// # Arguments
     /// * `callback` - closure, in which the SCSI command is processed
-    pub fn poll<F>(&mut self, mut callback: F) -> Result<(), UsbError>
+    pub async fn poll<F>(&mut self, mut callback: F) -> Result<(), EndpointError>
     where
         F: FnMut(Command<ScsiCommand, Scsi<BulkOnly<'d, D, Buf>>>),
     {
-        fn map_ignore<T>(res: Result<T, TransportError<BulkOnlyError>>) -> Result<(), UsbError> {
+        fn map_ignore<T>(
+            res: Result<T, TransportError<BulkOnlyError>>,
+        ) -> Result<(), EndpointError> {
             match res {
-                Ok(_)
-                | Err(TransportError::Usb(UsbError::WouldBlock))
-                | Err(TransportError::Error(_)) => Ok(()),
+                Ok(_) | Err(TransportError::Error(_)) => Ok(()),
                 Err(TransportError::Usb(err)) => Err(err),
             }
         }
         // drive transport in both directions before user action
-        map_ignore(self.transport.read())?;
-        map_ignore(self.transport.write())?;
+        map_ignore(self.transport.read().await)?;
+        map_ignore(self.transport.write().await)?;
 
         if let Some(raw_cb) = self.transport.get_command() {
             // exec callback only if user action required
@@ -237,18 +251,16 @@ impl<'d, D: Driver<'d>, Buf: BorrowMut<[u8]>> Scsi<'d, BulkOnly<'d, D, Buf>> {
 
                     // drive transport in both directions after user action.
                     // exec callback if not enough data
-                    match self.transport.write() {
+                    match self.transport.write().await {
                         Err(TransportError::Error(BulkOnlyError::FullPacketExpected)) => {
                             continue;
                         }
-                        Ok(_)
-                        | Err(TransportError::Error(_))
-                        | Err(TransportError::Usb(UsbError::WouldBlock)) => { /* ignore */ }
+                        Ok(_) | Err(TransportError::Error(_)) => { /* ignore */ }
                         Err(TransportError::Usb(err)) => {
                             return Err(err);
                         }
                     };
-                    map_ignore(self.transport.read())?;
+                    map_ignore(self.transport.read().await)?;
 
                     break;
                 }

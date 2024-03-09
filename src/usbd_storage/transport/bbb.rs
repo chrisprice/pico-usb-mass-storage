@@ -1,15 +1,12 @@
 //! Bulk Only Transport (BBB/BOT)
 
-use crate::usbd_storage::buffer::Buffer;
+use crate::usbd_storage::buffer::{AsyncReader, AsyncWriter, Buffer};
 use crate::usbd_storage::fmt::{info, trace};
 use crate::usbd_storage::transport::{CommandStatus, Transport, TransportError};
 use core::borrow::BorrowMut;
 use core::cmp::min;
-use embassy_usb::driver::Driver;
-use embassy_usb::Builder;
-use usb_device::class_prelude::DescriptorWriter;
-use usb_device::control::{Recipient, RequestType};
-use usb_device::UsbError;
+use embassy_usb::driver::{Driver, Endpoint, EndpointIn, EndpointOut};
+use embassy_usb::InterfaceAltBuilder;
 
 /// Bulk Only Transport interface protocol
 pub(crate) const TRANSPORT_BBB: u8 = 0x50;
@@ -57,7 +54,6 @@ enum State {
     DataTransferToHost,   // writing bytes to host
     DataTransferFromHost, // reading bytes from host
     DataTransferNoData,   // data transfer not expected
-    StatusTransfer,       // writing CSW packets
 }
 
 #[repr(u8)]
@@ -118,8 +114,8 @@ where
     /// [InvalidMaxLun]: crate::transport::bbb::BulkOnlyError::InvalidMaxLun
     /// [BufferTooSmall]: crate::transport::bbb::BulkOnlyError::BufferTooSmall
     /// [UsbDAllocator]: usb_device::bus::UsbDAllocator
-    pub fn new(
-        alloc: &'d Builder<'d, D>,
+    pub fn new<'a, 'b>(
+        builder: &'a mut InterfaceAltBuilder<'b, 'd, D>,
         packet_size: u16,
         max_lun: u8,
         buf: Buf,
@@ -134,8 +130,8 @@ where
         }
 
         Ok(BulkOnly {
-            in_ep: alloc.bulk(packet_size),
-            out_ep: alloc.bulk(packet_size),
+            in_ep: builder.endpoint_bulk_in(packet_size),
+            out_ep: builder.endpoint_bulk_out(packet_size),
             buf: Buffer::new(buf),
             state: State::Idle,
             cbw: Default::default(),
@@ -145,20 +141,19 @@ where
     }
 
     /// Drives a transport by reading a single packet
-    pub fn read(&mut self) -> BulkOnlyTransportResult<()> {
+    pub async fn read(&mut self) -> BulkOnlyTransportResult<()> {
         match self.state {
-            State::Idle | State::CommandTransfer => self.handle_read_cbw(),
-            State::DataTransferFromHost => self.handle_read_from_host(),
+            State::Idle | State::CommandTransfer => self.handle_read_cbw().await,
+            State::DataTransferFromHost => self.handle_read_from_host().await,
             _ => Ok(()),
         }
     }
 
     /// Drives a transport by writing a single packet
-    pub fn write(&mut self) -> BulkOnlyTransportResult<()> {
+    pub async fn write(&mut self) -> BulkOnlyTransportResult<()> {
         match self.state {
-            State::StatusTransfer => self.handle_write_csw(),
-            State::DataTransferToHost => self.handle_write_to_host(),
-            State::DataTransferNoData => self.handle_no_data_transfer(),
+            State::DataTransferToHost => self.handle_write_to_host().await,
+            State::DataTransferNoData => self.handle_no_data_transfer().await,
             _ => Ok(()),
         }
     }
@@ -272,8 +267,8 @@ where
         self.status_present()
     }
 
-    fn handle_read_cbw(&mut self) -> BulkOnlyTransportResult<()> {
-        self.read_packet()?; // propagate if error or WouldBlock
+    async fn handle_read_cbw(&mut self) -> BulkOnlyTransportResult<()> {
+        self.read_packet().await?; // propagate if error or WouldBlock
 
         if self.buf.available_read() >= CBW_LEN {
             // try parse CBW if enough data available
@@ -295,16 +290,16 @@ where
         Ok(())
     }
 
-    fn handle_read_from_host(&mut self) -> BulkOnlyTransportResult<()> {
+    async fn handle_read_from_host(&mut self) -> BulkOnlyTransportResult<()> {
         if !self.status_present() {
-            let count = self.read_packet()?; // propagate if error or WouldBlock
+            let count = self.read_packet().await?; // propagate if error or WouldBlock
             self.cbw.data_transfer_len = self.cbw.data_transfer_len.saturating_sub(count as u32);
             trace!("usb: bbb: Data residue: {}", self.cbw.data_transfer_len);
         }
-        self.check_end_data_transfer()
+        self.check_end_data_transfer().await
     }
 
-    fn handle_write_to_host(&mut self) -> BulkOnlyTransportResult<()> {
+    async fn handle_write_to_host(&mut self) -> BulkOnlyTransportResult<()> {
         // Do not send a short packet if there is not enough data in the buffer. Some drivers
         // consider this as an error.
         // If the next packet is expected to be full (according to data residue) but it isn't,
@@ -319,39 +314,39 @@ where
         if full_packet_or_zero {
             // attempt to send data from buffer if any
             if self.buf.available_read() > 0 {
-                let count = self.write_packet()?; // propagate if error
+                let count = self.write_packet().await?; // propagate if error
                 self.cbw.data_transfer_len =
                     self.cbw.data_transfer_len.saturating_sub(count as u32);
                 trace!("usb: bbb: Data residue: {}", self.cbw.data_transfer_len);
             }
-            self.check_end_data_transfer()
+            self.check_end_data_transfer().await
         } else {
             Err(TransportError::Error(BulkOnlyError::FullPacketExpected))
         }
     }
 
-    fn handle_no_data_transfer(&mut self) -> BulkOnlyTransportResult<()> {
-        self.check_end_data_transfer()
+    async fn handle_no_data_transfer(&mut self) -> BulkOnlyTransportResult<()> {
+        self.check_end_data_transfer().await
     }
 
-    fn handle_write_csw(&mut self) -> BulkOnlyTransportResult<()> {
-        self.write_packet()?; // propagate if error
+    async fn handle_write_csw(&mut self) -> BulkOnlyTransportResult<()> {
+        self.write_packet().await?; // propagate if error
         if self.buf.available_read() == 0 {
             self.enter_state(State::Idle) // done with status transfer
         }
         Ok(())
     }
 
-    fn check_end_data_transfer(&mut self) -> BulkOnlyTransportResult<()> {
+    async fn check_end_data_transfer(&mut self) -> BulkOnlyTransportResult<()> {
         if self.status_present() {
             match self.state {
                 State::DataTransferNoData => {
-                    self.end_data_transfer()?;
+                    self.end_data_transfer().await?;
                 }
                 State::DataTransferFromHost | State::DataTransferToHost
                     if self.buf.available_read() == 0 =>
                 {
-                    self.end_data_transfer()?;
+                    self.end_data_transfer().await?;
                 }
                 _ => {}
             }
@@ -360,7 +355,7 @@ where
         Ok(())
     }
 
-    fn end_data_transfer(&mut self) -> BulkOnlyTransportResult<()> {
+    async fn end_data_transfer(&mut self) -> BulkOnlyTransportResult<()> {
         // spec. 6.7.2 and 6.7.3
         if self.cbw.data_transfer_len > 0 {
             match self.state {
@@ -380,8 +375,7 @@ where
         self.buf.clean();
         self.buf.write(csw.as_slice());
 
-        self.enter_state(State::StatusTransfer);
-        self.write() // flush
+        self.handle_write_csw().await
     }
 
     #[inline]
@@ -443,19 +437,18 @@ where
 
     #[inline]
     fn packet_size(&self) -> usize {
-        self.in_ep.max_packet_size() as usize // same for both In and Out EPs
+        self.in_ep.info().max_packet_size as usize // same for both In and Out EPs
     }
 
-    fn read_packet(&mut self) -> BulkOnlyTransportResult<usize> {
-        let count = self.buf.write_all(
-            self.packet_size(),
-            TransportError::Error(BulkOnlyError::IoBufferOverflow),
-            |buf| match self.out_ep.read(buf) {
-                Ok(count) => Ok(count),
-                Err(UsbError::WouldBlock) => Ok(0),
-                Err(err) => Err(TransportError::Usb(err)),
-            },
-        )?;
+    async fn read_packet(&mut self) -> BulkOnlyTransportResult<usize> {
+        let count = self
+            .buf
+            .write_all_async(
+                self.packet_size(),
+                TransportError::Error(BulkOnlyError::IoBufferOverflow),
+                OutEndPointReader::<'_, '_, D>(&mut self.out_ep),
+            )
+            .await?;
 
         trace!(
             "usb: bbb: Read bytes: {}, buf available: {}",
@@ -463,27 +456,15 @@ where
             self.buf.available_read()
         );
 
-        if count == 0 {
-            Err(TransportError::Usb(UsbError::WouldBlock))
-        } else {
-            Ok(count)
-        }
+        Ok(count)
     }
 
     /// Write single packet from [buf] returning number of bytes actually written
-    fn write_packet(&mut self) -> BulkOnlyTransportResult<usize> {
-        let packet_size = self.packet_size();
-        let count = self.buf.read(|buf| {
-            if !buf.is_empty() {
-                match self.in_ep.write(&buf[..min(packet_size, buf.len())]) {
-                    Ok(count) => Ok(count),
-                    Err(UsbError::WouldBlock) => Ok(0),
-                    Err(err) => Err(TransportError::Usb(err)),
-                }
-            } else {
-                Ok(0) // not enough data in buf, though it's not an error
-            }
-        })?;
+    async fn write_packet(&mut self) -> BulkOnlyTransportResult<usize> {
+        let count = self
+            .buf
+            .read_async(InEndPointWriter::<'_, '_, D>(&mut self.in_ep))
+            .await?;
 
         trace!(
             "usb: bbb: Wrote bytes: {}, buf available: {}",
@@ -491,11 +472,7 @@ where
             self.buf.available_read()
         );
 
-        if count == 0 {
-            Err(TransportError::Usb(UsbError::WouldBlock))
-        } else {
-            Ok(count)
-        }
+        Ok(count)
     }
 
     #[inline]
@@ -506,14 +483,16 @@ where
 
     #[inline]
     fn stall_in_ep(&self) {
-        info!("usb: bbb: Stall IN ep");
-        self.in_ep.stall();
+        todo!("usb: bbb: Stall IN ep");
+        // info!("usb: bbb: Stall IN ep");
+        // self.in_ep.stall();
     }
 
     #[inline]
     fn stall_out_ep(&self) {
-        info!("usb: bbb: Stall OUT ep");
-        self.out_ep.stall();
+        todo!("usb: bbb: Stall OUT ep");
+        // info!("usb: bbb: Stall OUT ep");
+        // self.out_ep.stall();
     }
 
     #[inline]
@@ -535,42 +514,38 @@ where
     Buf: BorrowMut<[u8]>,
 {
     const PROTO: u8 = TRANSPORT_BBB;
-    type Bus = D;
-
-    fn get_endpoint_descriptors(&self, writer: &mut DescriptorWriter) -> Result<(), UsbError> {
-        writer.endpoint(&self.in_ep)?;
-        writer.endpoint(&self.out_ep)?;
-        Ok(())
-    }
+    type Driver = D;
 
     fn reset(&mut self) {
         info!("usb: bbb: Recv reset");
-        self.in_ep.unstall();
-        self.out_ep.unstall();
-        self.enter_state(State::Idle);
+        todo!("usb: bbb: Reset");
+        // self.in_ep.unstall();
+        // self.out_ep.unstall();
+        // self.enter_state(State::Idle);
     }
 
-    fn control_in(&mut self, xfer: <Self::Bus as Driver<'d>>::ControlPipe) {
-        let req = xfer.request();
+    fn control_in(&mut self, xfer: <Self::Driver as Driver<'d>>::ControlPipe) {
+        todo!("usb: bbb: Recv ctrl_in");
+        // let req = xfer.request();
 
-        // not interested in this request
-        if !(req.request_type == RequestType::Class && req.recipient == Recipient::Interface) {
-            return;
-        }
+        // // not interested in this request
+        // if !(req.request_type == RequestType::Class && req.recipient == Recipient::Interface) {
+        //     return;
+        // }
 
-        info!("usb: bbb: Recv ctrl_in: {}", req);
+        // info!("usb: bbb: Recv ctrl_in: {}", req);
 
-        match req.request {
-            // Spec. section 3.1
-            CLASS_SPECIFIC_BULK_ONLY_MASS_STORAGE_RESET => {}
-            // Spec. section 3.2
-            CLASS_SPECIFIC_GET_MAX_LUN => {
-                // always respond with LUN
-                xfer.accept_with(&[self.max_lun])
-                    .expect("Failed to accept Get Max Lun!");
-            }
-            _ => {}
-        }
+        // match req.request {
+        //     // Spec. section 3.1
+        //     CLASS_SPECIFIC_BULK_ONLY_MASS_STORAGE_RESET => {}
+        //     // Spec. section 3.2
+        //     CLASS_SPECIFIC_GET_MAX_LUN => {
+        //         // always respond with LUN
+        //         xfer.accept_with(&[self.max_lun])
+        //             .expect("Failed to accept Get Max Lun!");
+        //     }
+        //     _ => {}
+        // }
     }
 }
 
@@ -612,5 +587,36 @@ impl CommandBlockWrapper {
             block_len: block_len as usize,
             block: value[11..].try_into().unwrap(), // ok, cause we checked a length
         })
+    }
+}
+
+struct OutEndPointReader<'a, 'd, D: Driver<'d>>(&'a mut D::EndpointOut);
+
+impl<'a, 'd, D: Driver<'d>> AsyncWriter for OutEndPointReader<'a, 'd, D> {
+    type Error = TransportError<BulkOnlyError>;
+
+    async fn write(&mut self, buf: &mut [u8]) -> Result<usize, Self::Error> {
+        match self.0.read(buf).await {
+            Ok(count) => Ok(count),
+            Err(err) => Err(TransportError::Usb(err)),
+        }
+    }
+}
+
+struct InEndPointWriter<'a, 'd, D: Driver<'d>>(&'a mut D::EndpointIn);
+
+impl<'a, 'd, D: Driver<'d>> AsyncReader for InEndPointWriter<'a, 'd, D> {
+    type Error = TransportError<BulkOnlyError>;
+
+    async fn read(&mut self, buf: &mut [u8]) -> Result<usize, Self::Error> {
+        let packet_size = self.0.info().max_packet_size as usize;
+        if !buf.is_empty() {
+            match self.0.write(&buf[..min(packet_size, buf.len())]).await {
+                Ok(_count) => Ok(buf.len()),
+                Err(err) => Err(TransportError::Usb(err)),
+            }
+        } else {
+            Ok(0) // not enough data in buf, though it's not an error
+        }
     }
 }
