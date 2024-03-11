@@ -112,11 +112,13 @@ async fn main(_spawner: Spawner) {
 
     let scsi_fut = async {
         loop {
-            let _ = scsi.poll(|command| {
-                if let Err(err) = process_command(command) {
-                    error!("{}", err);
-                }
-            });
+            let _ = scsi
+                .poll(|command| {
+                    if let Err(err) = process_command(command) {
+                        error!("{}", err);
+                    }
+                })
+                .await;
             Timer::after_millis(1).await;
         }
     };
@@ -196,7 +198,7 @@ fn process_command<'d>(
             let _ = &mut data[0..4].copy_from_slice(&[
                 0x00, 0x00, 0x00, 0x08, // capacity list length
             ]);
-            let _ = &mut data[4..8].copy_from_slice(&u32::to_be_bytes(BLOCKS as u32)); // number of blocks
+            let _ = &mut data[4..8].copy_from_slice(&u32::to_be_bytes(BLOCKS)); // number of blocks
             data[8] = 0x01; //unformatted media
             let block_length_be = u32::to_be_bytes(BLOCK_SIZE);
             data[9] = block_length_be[1];
@@ -216,7 +218,7 @@ fn process_command<'d>(
                 // Uncomment this in order to push data in chunks smaller than a USB packet.
                 // let end = min(start + USB_PACKET_SIZE as usize - 1, end);
 
-                let count = command.write_data(&mut STORAGE[start..end])?;
+                let count = command.write_data(&STORAGE[start..end])?;
                 STATE.storage_offset += count;
             } else {
                 command.pass();
