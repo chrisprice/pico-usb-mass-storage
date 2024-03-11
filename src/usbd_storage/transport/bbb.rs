@@ -208,7 +208,8 @@ where
 
     /// Drives a transport by writing a single packet
     pub async fn write(&mut self) -> BulkOnlyTransportResult<()> {
-        match self.shared.borrow().state {
+        let state = self.shared.borrow().state;
+        match state {
             State::DataTransferToHost => self.handle_write_to_host().await,
             State::DataTransferNoData => self.handle_no_data_transfer().await,
             _ => Ok(()),
@@ -424,7 +425,8 @@ where
 
     async fn check_end_data_transfer(&mut self) -> BulkOnlyTransportResult<()> {
         if self.status_present() {
-            match self.shared.borrow().state {
+            let state = self.shared.borrow().state;
+            match state {
                 State::DataTransferNoData => {
                     self.end_data_transfer().await?;
                 }
