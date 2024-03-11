@@ -140,7 +140,7 @@ pub trait AsyncWriter {
 
 #[cfg(test)]
 mod tests {
-    use crate::buffer::Buffer;
+    use crate::usbd_storage::buffer::Buffer;
 
     const DATA: [u8; 10] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
 
