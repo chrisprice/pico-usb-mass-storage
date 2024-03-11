@@ -1,7 +1,6 @@
 //! USB Mass Storage transports
 
 use core::fmt::Debug;
-use embassy_usb::driver::Driver;
 use embassy_usb::driver::EndpointError;
 
 #[cfg(feature = "bbb")]
@@ -16,16 +15,9 @@ pub const TRANSPORT_VENDOR_SPECIFIC: u8 = 0xFF;
 /// defined in [subclass] module .
 ///
 /// [subclass]: crate::subclass
-pub trait Transport<'alloc> {
+pub trait Transport {
     /// Interface protocol code
     const PROTO: u8;
-    type Driver: Driver<'alloc>;
-
-    /// Called after a USB reset after the bus reset sequence is complete.
-    fn reset(&mut self);
-
-    /// Called when a control request is received with direction DeviceToHost.
-    fn control_in(&mut self, xfer: <Self::Driver as Driver<'alloc>>::ControlPipe);
 }
 
 /// Generic error type that could be used by [Transport] impls.

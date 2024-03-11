@@ -1,11 +1,10 @@
 //! USB SCSI
 
-use core::marker::PhantomData;
-
+use crate::usbd_storage::transport::bbb::StateHarder;
 use crate::usbd_storage::{transport::Transport, CLASS_MASS_STORAGE};
+use embassy_usb::driver::Driver;
 use embassy_usb::driver::EndpointError;
 use embassy_usb::Builder;
-use embassy_usb::{driver::Driver, types::InterfaceNumber};
 use num_enum::TryFromPrimitive;
 #[cfg(feature = "bbb")]
 use {
@@ -153,17 +152,15 @@ fn parse_cb(cb: &[u8]) -> ScsiCommand {
 }
 
 /// SCSI USB Mass Storage subclass
-pub struct Scsi<'d, T: Transport<'d>> {
-    _phantom: core::marker::PhantomData<&'d T>,
-    _interface: InterfaceNumber,
-    pub(crate) transport: T,
+pub struct Scsi<T: Transport> {
+    pub(super) transport: T,
 }
 
 /// SCSI subclass implementation with [Bulk Only Transport]
 ///
 /// [Bulk Only Transport]: crate::transport::bbb::BulkOnly
 #[cfg(feature = "bbb")]
-impl<'d, D: Driver<'d>, Buf: BorrowMut<[u8]>> Scsi<'d, BulkOnly<'d, D, Buf>> {
+impl<'d, D: Driver<'d>, Buf: BorrowMut<[u8]>> Scsi<BulkOnly<'d, D, Buf>> {
     /// Creates a SCSI over Bulk Only Transport instance
     ///
     /// # Arguments
@@ -183,14 +180,12 @@ impl<'d, D: Driver<'d>, Buf: BorrowMut<[u8]>> Scsi<'d, BulkOnly<'d, D, Buf>> {
     /// [InvalidMaxLun]: crate::transport::bbb::BulkOnlyError::InvalidMaxLun
     /// [BufferTooSmall]: crate::transport::bbb::BulkOnlyError::BufferTooSmall
     /// [UsbBusAllocator]: usb_device::bus::UsbBusAllocator
-    pub fn new<'a>(
-        builder: &'a mut Builder<'d, D>,
+    pub fn new(
+        builder: &mut Builder<'d, D>,
+        state: &'d mut StateHarder<'d, Buf>,
         packet_size: u16,
         max_lun: u8,
-        buf: Buf,
     ) -> Result<Self, BulkOnlyError> {
-        // TODO: wire up UsbClass::reset/ctrl_in
-        // TODO: all of this came from Transport::get_endpoint_descriptors
         let mut func = builder.function(
             CLASS_MASS_STORAGE,
             SUBCLASS_SCSI,
@@ -203,12 +198,10 @@ impl<'d, D: Driver<'d>, Buf: BorrowMut<[u8]>> Scsi<'d, BulkOnly<'d, D, Buf>> {
             <BulkOnly<D, Buf> as Transport>::PROTO,
             None,
         );
-
-        BulkOnly::new(&mut alt, packet_size, max_lun, buf).map(|transport| Self {
-            _phantom: PhantomData::default(),
-            _interface: interface.interface_number(),
-            transport,
-        })
+        let in_ep = alt.endpoint_bulk_in(packet_size);
+        let out_ep = alt.endpoint_bulk_out(packet_size);
+        drop(func);
+        BulkOnly::new(builder, in_ep, out_ep, state, max_lun).map(|transport| Self { transport })
     }
 
     /// Drive subclass in both directions
@@ -238,7 +231,7 @@ impl<'d, D: Driver<'d>, Buf: BorrowMut<[u8]>> Scsi<'d, BulkOnly<'d, D, Buf>> {
             // exec callback only if user action required
             if !self.transport.has_status() {
                 let lun = raw_cb.lun;
-                let kind = parse_cb(raw_cb.bytes);
+                let kind = parse_cb(&raw_cb.bytes);
 
                 debug!("usb: scsi: Command: {}", kind);
 
@@ -270,35 +263,3 @@ impl<'d, D: Driver<'d>, Buf: BorrowMut<[u8]>> Scsi<'d, BulkOnly<'d, D, Buf>> {
         Ok(())
     }
 }
-
-// impl<Bus, T> UsbClass<Bus> for Scsi<T>
-// where
-//     Bus: UsbBus,
-//     T: Transport<Bus = Bus>,
-// {
-//     fn get_configuration_descriptors(
-//         &self,
-//         writer: &mut DescriptorWriter,
-//     ) -> usb_device::Result<()> {
-//         writer.iad(
-//             self.interface,
-//             1,
-//             CLASS_MASS_STORAGE,
-//             SUBCLASS_SCSI,
-//             T::PROTO,
-//         )?;
-//         writer.interface(self.interface, CLASS_MASS_STORAGE, SUBCLASS_SCSI, T::PROTO)?;
-
-//         self.transport.get_endpoint_descriptors(writer)?;
-
-//         Ok(())
-//     }
-
-//     fn reset(&mut self) {
-//         self.transport.reset()
-//     }
-
-//     fn control_in(&mut self, xfer: ControlIn<Bus>) {
-//         self.transport.control_in(xfer)
-//     }
-// }

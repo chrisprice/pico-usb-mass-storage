@@ -68,7 +68,7 @@ impl<'a, 'alloc, Bus: UsbBus + 'alloc, Buf: BorrowMut<[u8]>>
 /// [Bulk Only Transport]: crate::transport::bbb::BulkOnly
 #[cfg(all(feature = "bbb", feature = "scsi"))]
 impl<'a, 'd, D: Driver<'d>, Buf: BorrowMut<[u8]>>
-    Command<'a, ScsiCommand, Scsi<'d, BulkOnly<'d, D, Buf>>>
+    Command<'a, ScsiCommand, Scsi<BulkOnly<'d, D, Buf>>>
 {
     /// [crate::transport::bbb::BulkOnly::read_data]
     pub fn read_data(&mut self, dst: &mut [u8]) -> Result<usize, TransportError<BulkOnlyError>> {
