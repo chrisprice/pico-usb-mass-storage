@@ -318,8 +318,7 @@ where
                 Err(_) => {
                     // Spec. 6.6.1
                     self.stall_eps();
-                    todo!("reset");
-                    // self.reset();
+                    self.enter_state(State::Idle);
                 }
             }
         } else {
