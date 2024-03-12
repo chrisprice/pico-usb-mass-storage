@@ -72,18 +72,10 @@ async fn main(_spawner: Spawner) {
     config.max_power = 100;
     config.max_packet_size_0 = 64;
 
-    // Required for windows compatibility.
-    // https://developer.nordicsemi.com/nRF_Connect_SDK/doc/1.9.1/kconfig/CONFIG_CDC_ACM_IAD.html#help
-    config.device_class = 0xEF;
-    config.device_sub_class = 0x02;
-    config.device_protocol = 0x01;
-    config.composite_with_iads = true;
-
-    // Create embassy-usb DeviceBuilder using the driver and config.
-    // It needs some buffers for building the descriptors.
     let mut device_descriptor = [0; 256];
     let mut config_descriptor = [0; 256];
     let mut bos_descriptor = [0; 256];
+    let mut mos_descriptor = [0; 0];
     let mut control_buf = [0; 64];
 
     let mut scsi_state = StateHarder::default();
@@ -94,11 +86,11 @@ async fn main(_spawner: Spawner) {
         &mut device_descriptor,
         &mut config_descriptor,
         &mut bos_descriptor,
-        &mut [], // no msos descriptors
+        &mut mos_descriptor,
         &mut control_buf,
     );
 
-    let mut scsi = pico_usb_mass_storage::usbd_storage::subclass::scsi::Scsi::new(
+    let mut scsi = Scsi::new(
         &mut builder,
         &mut scsi_state,
         unsafe { USB_TRANSPORT_BUF.assume_init_mut().as_mut_slice() },
