@@ -4,7 +4,7 @@ use crate::usbd_storage::buffer::{AsyncReader, AsyncWriter, Buffer};
 use crate::usbd_storage::fmt::{info, trace};
 use crate::usbd_storage::transport::{CommandStatus, Transport, TransportError};
 use core::borrow::BorrowMut;
-use core::cell::RefCell;
+use core::cell::Cell;
 use core::cmp::min;
 use core::mem::MaybeUninit;
 use embassy_usb::control::{InResponse, Recipient, Request, RequestType};
@@ -57,6 +57,7 @@ enum State {
     DataTransferToHost,   // writing bytes to host
     DataTransferFromHost, // reading bytes from host
     DataTransferNoData,   // data transfer not expected
+    Reset,                // the bus has been reset
 }
 
 #[repr(u8)]
@@ -71,55 +72,23 @@ enum DataDirection {
 
 type BulkOnlyTransportResult<T> = Result<T, TransportError<BulkOnlyError>>;
 
-pub struct StateHarder<'a, Buf: BorrowMut<[u8]>> {
-    shared: RefCell<Shared<Buf>>,
-    control: MaybeUninit<Control<'a, Buf>>,
+pub struct StateHarder<'a> {
+    state: Cell<State>,
+    control: MaybeUninit<Control<'a>>,
 }
 
-impl<'a, Buf: BorrowMut<[u8]>> StateHarder<'a, Buf> {
-    pub fn new(buf: Buf) -> Self {
+impl<'a> Default for StateHarder<'a> {
+    fn default() -> Self {
         Self {
-            shared: RefCell::new(Shared::new(buf)),
+            state: Cell::new(State::Idle),
             control: MaybeUninit::uninit(),
         }
     }
 }
 
-pub struct Control<'a, Buf: BorrowMut<[u8]>> {
-    shared: &'a RefCell<Shared<Buf>>,
+pub struct Control<'a> {
+    state: &'a Cell<State>,
     max_lun: u8,
-}
-
-pub struct Shared<Buf: BorrowMut<[u8]>> {
-    buf: Buffer<Buf>,
-    state: State,
-    cbw: CommandBlockWrapper,
-    cs: Option<CommandStatus>,
-}
-
-impl<Buf: BorrowMut<[u8]>> Shared<Buf> {
-    #[inline]
-    fn enter_state(&mut self, state: State) {
-        info!("usb: bbb: shared: Enter state: {}", state);
-        // clean if going Idle
-        if matches!(state, State::Idle) {
-            self.buf.clean();
-            self.cbw = Default::default();
-            self.cs = None;
-        }
-        self.state = state;
-    }
-}
-
-impl<Buf: BorrowMut<[u8]>> Shared<Buf> {
-    fn new(buf: Buf) -> Self {
-        Self {
-            buf: Buffer::new(buf),
-            state: State::Idle,
-            cbw: Default::default(),
-            cs: Default::default(),
-        }
-    }
 }
 
 /// Bulk Only Transport
@@ -137,7 +106,10 @@ impl<Buf: BorrowMut<[u8]>> Shared<Buf> {
 pub struct BulkOnly<'d, D: Driver<'d>, Buf: BorrowMut<[u8]>> {
     in_ep: D::EndpointIn,
     out_ep: D::EndpointOut,
-    shared: &'d RefCell<Shared<Buf>>,
+    state: &'d Cell<State>,
+    buf: Buffer<Buf>,
+    cbw: CommandBlockWrapper,
+    cs: Option<CommandStatus>,
 }
 
 impl<'d, D, Buf> BulkOnly<'d, D, Buf>
@@ -164,18 +136,19 @@ where
     /// [InvalidMaxLun]: crate::transport::bbb::BulkOnlyError::InvalidMaxLun
     /// [BufferTooSmall]: crate::transport::bbb::BulkOnlyError::BufferTooSmall
     /// [UsbDAllocator]: usb_device::bus::UsbDAllocator
-    pub fn new<'a, 'b: 'a>(
+    pub fn new<'b>(
         builder: &'b mut Builder<'d, D>,
         in_ep: D::EndpointIn,
         out_ep: D::EndpointOut,
-        state: &'d mut StateHarder<'d, Buf>,
+        state: &'d mut StateHarder<'d>,
+        buf: Buf,
         max_lun: u8,
     ) -> Result<BulkOnly<'d, D, Buf>, BulkOnlyError> {
         if max_lun > 0x0F {
             return Err(BulkOnlyError::InvalidMaxLun);
         }
 
-        let buf_len = state.shared.borrow().buf.available_write();
+        let buf_len = buf.borrow().len();
         let packet_size = in_ep.info().max_packet_size as usize;
         assert_eq!(packet_size, out_ep.info().max_packet_size as usize);
         if buf_len < CBW_LEN || buf_len < packet_size {
@@ -183,7 +156,7 @@ where
         }
 
         let control = state.control.write(Control {
-            shared: &state.shared,
+            state: &state.state,
             max_lun,
         });
 
@@ -192,14 +165,19 @@ where
         Ok(BulkOnly {
             in_ep,
             out_ep,
-            shared: &state.shared,
+            buf: Buffer::new(buf),
+            cbw: Default::default(),
+            cs: Default::default(),
+            state: &state.state,
         })
     }
 
     /// Drives a transport by reading a single packet
     pub async fn read(&mut self) -> BulkOnlyTransportResult<()> {
-        let state = self.shared.borrow().state;
-        match state {
+        if let State::Reset = self.state.get() {
+            self.enter_state(State::Idle);
+        }
+        match self.state.get() {
             State::Idle | State::CommandTransfer => self.handle_read_cbw().await,
             State::DataTransferFromHost => self.handle_read_from_host().await,
             _ => Ok(()),
@@ -208,8 +186,7 @@ where
 
     /// Drives a transport by writing a single packet
     pub async fn write(&mut self) -> BulkOnlyTransportResult<()> {
-        let state = self.shared.borrow().state;
-        match state {
+        match self.state.get() {
             State::DataTransferToHost => self.handle_write_to_host().await,
             State::DataTransferNoData => self.handle_no_data_transfer().await,
             _ => Ok(()),
@@ -227,24 +204,23 @@ where
     /// class implementation.
     pub fn set_status(&mut self, status: CommandStatus) {
         assert!(matches!(
-            self.shared.borrow().state,
+            self.state.get(),
             State::DataTransferToHost | State::DataTransferFromHost | State::DataTransferNoData
         ));
         info!("usb: bbb: Set status: {}", status);
-        self.shared.borrow_mut().cs = Some(status);
+        self.cs = Some(status);
     }
 
     /// Returns a Command Block if present
     pub fn get_command(&self) -> Option<CommandBlock> {
-        match self.shared.borrow().state {
+        match self.state.get() {
             State::Idle | State::CommandTransfer => None,
             _ => {
-                let shared = self.shared.borrow();
                 let mut bytes = [0; 16];
-                bytes.copy_from_slice(&shared.cbw.block[..shared.cbw.block_len]);
+                bytes.copy_from_slice(&self.cbw.block[..self.cbw.block_len]);
                 Some(CommandBlock {
                     bytes,
-                    lun: shared.cbw.lun,
+                    lun: self.cbw.lun,
                 })
             }
         }
@@ -261,12 +237,10 @@ where
     ///
     /// [BulkOnlyError::InvalidState]: crate::transport::bbb::BulkOnlyError::InvalidState
     pub fn read_data(&mut self, dst: &mut [u8]) -> BulkOnlyTransportResult<usize> {
-        if !matches!(self.shared.borrow().state, State::DataTransferFromHost) {
+        if !matches!(self.state.get(), State::DataTransferFromHost) {
             return Err(TransportError::Error(BulkOnlyError::InvalidState));
         }
         Ok(self
-            .shared
-            .borrow_mut()
             .buf
             .read(|buf| {
                 let size = min(dst.len(), buf.len());
@@ -287,16 +261,12 @@ where
     ///
     /// [BulkOnlyError::InvalidState]: crate::transport::bbb::BulkOnlyError::InvalidState
     pub fn write_data(&mut self, src: &[u8]) -> BulkOnlyTransportResult<usize> {
-        if !matches!(self.shared.borrow().state, State::DataTransferToHost) {
+        if !matches!(self.state.get(), State::DataTransferToHost) {
             return Err(TransportError::Error(BulkOnlyError::InvalidState));
         }
         if !self.status_present() {
-            let len = self.shared.borrow().cbw.data_transfer_len as usize;
-            Ok(self
-                .shared
-                .borrow_mut()
-                .buf
-                .write(&src[..min(src.len(), len)]))
+            let len = self.cbw.data_transfer_len as usize;
+            Ok(self.buf.write(&src[..min(src.len(), len)]))
         } else {
             Err(TransportError::Error(BulkOnlyError::InvalidState))
         }
@@ -311,13 +281,11 @@ where
     /// [BulkOnlyError::IoBufferOverflow]: crate::transport::bbb::BulkOnlyError::IoBufferOverflow
     /// [BulkOnlyError::InvalidState]: crate::transport::bbb::BulkOnlyError::InvalidState
     pub fn try_write_data_all(&mut self, src: &[u8]) -> BulkOnlyTransportResult<()> {
-        if !matches!(self.shared.borrow().state, State::DataTransferToHost) {
+        if !matches!(self.state.get(), State::DataTransferToHost) {
             return Err(TransportError::Error(BulkOnlyError::InvalidState));
         }
         if !self.status_present() {
-            self.shared
-                .borrow_mut()
-                .buf
+            self.buf
                 .write_all(
                     src.len(),
                     TransportError::Error(BulkOnlyError::IoBufferOverflow),
@@ -340,7 +308,7 @@ where
     async fn handle_read_cbw(&mut self) -> BulkOnlyTransportResult<()> {
         self.read_packet().await?; // propagate if error or WouldBlock
 
-        if self.shared.borrow().buf.available_read() >= CBW_LEN {
+        if self.buf.available_read() >= CBW_LEN {
             // try parse CBW if enough data available
             match self.try_parse_cbw() {
                 Ok(cbw) => {
@@ -364,16 +332,8 @@ where
     async fn handle_read_from_host(&mut self) -> BulkOnlyTransportResult<()> {
         if !self.status_present() {
             let count = self.read_packet().await?; // propagate if error or WouldBlock
-            self.shared.borrow_mut().cbw.data_transfer_len = self
-                .shared
-                .borrow()
-                .cbw
-                .data_transfer_len
-                .saturating_sub(count as u32);
-            trace!(
-                "usb: bbb: Data residue: {}",
-                self.shared.borrow().cbw.data_transfer_len
-            );
+            self.cbw.data_transfer_len = self.cbw.data_transfer_len.saturating_sub(count as u32);
+            trace!("usb: bbb: Data residue: {}", self.cbw.data_transfer_len);
         }
         self.check_end_data_transfer().await
     }
@@ -386,24 +346,17 @@ where
 
         let max_packet_size = self.packet_size() as u32;
         let full_packet_expected =
-            self.shared.borrow().cbw.data_transfer_len >= max_packet_size && !self.status_present();
-        let full_packet = self.shared.borrow().buf.available_read() >= max_packet_size as usize;
+            self.cbw.data_transfer_len >= max_packet_size && !self.status_present();
+        let full_packet = self.buf.available_read() >= max_packet_size as usize;
         let full_packet_or_zero = full_packet || !full_packet_expected;
 
         if full_packet_or_zero {
             // attempt to send data from buffer if any
-            if self.shared.borrow().buf.available_read() > 0 {
+            if self.buf.available_read() > 0 {
                 let count = self.write_packet().await?; // propagate if error
-                self.shared.borrow_mut().cbw.data_transfer_len = self
-                    .shared
-                    .borrow()
-                    .cbw
-                    .data_transfer_len
-                    .saturating_sub(count as u32);
-                trace!(
-                    "usb: bbb: Data residue: {}",
-                    self.shared.borrow().cbw.data_transfer_len
-                );
+                self.cbw.data_transfer_len =
+                    self.cbw.data_transfer_len.saturating_sub(count as u32);
+                trace!("usb: bbb: Data residue: {}", self.cbw.data_transfer_len);
             }
             self.check_end_data_transfer().await
         } else {
@@ -417,7 +370,7 @@ where
 
     async fn handle_write_csw(&mut self) -> BulkOnlyTransportResult<()> {
         self.write_packet().await?; // propagate if error
-        if self.shared.borrow().buf.available_read() == 0 {
+        if self.buf.available_read() == 0 {
             self.enter_state(State::Idle) // done with status transfer
         }
         Ok(())
@@ -425,13 +378,13 @@ where
 
     async fn check_end_data_transfer(&mut self) -> BulkOnlyTransportResult<()> {
         if self.status_present() {
-            let state = self.shared.borrow().state;
+            let state = self.state.get();
             match state {
                 State::DataTransferNoData => {
                     self.end_data_transfer().await?;
                 }
                 State::DataTransferFromHost | State::DataTransferToHost
-                    if self.shared.borrow().buf.available_read() == 0 =>
+                    if self.buf.available_read() == 0 =>
                 {
                     self.end_data_transfer().await?;
                 }
@@ -444,8 +397,8 @@ where
 
     async fn end_data_transfer(&mut self) -> BulkOnlyTransportResult<()> {
         // spec. 6.7.2 and 6.7.3
-        if self.shared.borrow().cbw.data_transfer_len > 0 {
-            match self.shared.borrow().state {
+        if self.cbw.data_transfer_len > 0 {
+            match self.state.get() {
                 State::DataTransferToHost => {
                     //TODO: send zlp right here
                     self.stall_in_ep();
@@ -459,30 +412,23 @@ where
 
         // write CSW into buffer
         let csw = self.build_csw().unwrap();
-        self.shared.borrow_mut().buf.clean();
-        self.shared.borrow_mut().buf.write(csw.as_slice());
+        self.buf.clean();
+        self.buf.write(csw.as_slice());
 
         self.handle_write_csw().await
     }
 
     #[inline]
     fn status_present(&self) -> bool {
-        self.shared.borrow().cs.is_some()
+        self.cs.is_some()
     }
 
     fn build_csw(&mut self) -> Option<[u8; CSW_LEN]> {
-        self.shared.borrow().cs.map(|status| {
+        self.cs.map(|status| {
             let mut csw = [0u8; CSW_LEN];
             csw[..4].copy_from_slice(CSW_SIGNATURE_LE.as_slice());
-            csw[4..8].copy_from_slice(self.shared.borrow().cbw.tag.to_le_bytes().as_slice());
-            csw[8..12].copy_from_slice(
-                self.shared
-                    .borrow()
-                    .cbw
-                    .data_transfer_len
-                    .to_le_bytes()
-                    .as_slice(),
-            );
+            csw[4..8].copy_from_slice(self.cbw.tag.to_le_bytes().as_slice());
+            csw[8..12].copy_from_slice(self.cbw.data_transfer_len.to_le_bytes().as_slice());
             csw[12..].copy_from_slice(&[status as u8]);
             csw
         })
@@ -491,16 +437,14 @@ where
     /// The caller must ensure that there is enough data available
     fn try_parse_cbw(&mut self) -> Result<CommandBlockWrapper, InvalidCbwError> {
         debug_assert!(matches!(
-            self.shared.borrow().state,
+            self.state.get(),
             State::Idle | State::CommandTransfer
         ));
-        debug_assert!(self.shared.borrow().buf.available_read() >= CBW_LEN);
+        debug_assert!(self.buf.available_read() >= CBW_LEN);
 
         // read CBW from buf
         let mut raw_cbw = [0u8; CBW_LEN];
-        self.shared
-            .borrow_mut()
-            .buf
+        self.buf
             .read::<()>(|buf| {
                 raw_cbw.copy_from_slice(&buf[..CBW_LEN]); // buf.len() checked in the beginning
                 Ok(CBW_LEN)
@@ -517,7 +461,7 @@ where
 
     fn start_data_transfer(&mut self, mut cbw: CommandBlockWrapper) {
         debug_assert!(matches!(
-            self.shared.borrow().state,
+            self.state.get(),
             State::Idle | State::CommandTransfer
         ));
 
@@ -534,7 +478,7 @@ where
                 cbw.data_transfer_len = 0; // original value ignored
             }
         };
-        self.shared.borrow_mut().cbw = cbw;
+        self.cbw = cbw;
     }
 
     #[inline]
@@ -544,8 +488,6 @@ where
 
     async fn read_packet(&mut self) -> BulkOnlyTransportResult<usize> {
         let count = self
-            .shared
-            .borrow_mut()
             .buf
             .write_all_async(
                 self.packet_size(),
@@ -557,7 +499,7 @@ where
         trace!(
             "usb: bbb: Read bytes: {}, buf available: {}",
             count,
-            self.shared.borrow().buf.available_read()
+            self.buf.available_read()
         );
 
         Ok(count)
@@ -566,8 +508,6 @@ where
     /// Write single packet from [buf] returning number of bytes actually written
     async fn write_packet(&mut self) -> BulkOnlyTransportResult<usize> {
         let count = self
-            .shared
-            .borrow_mut()
             .buf
             .read_async(InEndPointWriter::<'_, '_, D>(&mut self.in_ep))
             .await?;
@@ -575,7 +515,7 @@ where
         trace!(
             "usb: bbb: Wrote bytes: {}, buf available: {}",
             count,
-            self.shared.borrow().buf.available_read()
+            self.buf.available_read()
         );
 
         Ok(count)
@@ -604,7 +544,13 @@ where
     #[inline]
     fn enter_state(&mut self, state: State) {
         info!("usb: bbb: Enter state: {}", state);
-        self.shared.borrow_mut().enter_state(state);
+        // clean if going Idle
+        if matches!(state, State::Idle) {
+            self.buf.clean();
+            self.cbw = Default::default();
+            self.cs = None;
+        }
+        self.state.set(state);
     }
 }
 
@@ -616,15 +562,12 @@ where
     const PROTO: u8 = TRANSPORT_BBB;
 }
 
-impl<'d, Buf> Handler for Control<'d, Buf>
-where
-    Buf: BorrowMut<[u8]>,
-{
+impl<'d> Handler for Control<'d> {
     fn reset(&mut self) {
         info!("usb: bbb: Recv reset");
         // self.in_ep.unstall();
         // self.out_ep.unstall();
-        self.shared.borrow_mut().enter_state(State::Idle);
+        self.state.set(State::Reset);
     }
 
     fn control_in<'a>(&'a mut self, req: Request, buf: &'a mut [u8]) -> Option<InResponse<'a>> {

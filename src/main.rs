@@ -86,8 +86,7 @@ async fn main(_spawner: Spawner) {
     let mut bos_descriptor = [0; 256];
     let mut control_buf = [0; 64];
 
-    let mut scsi_state =
-        StateHarder::new(unsafe { USB_TRANSPORT_BUF.assume_init_mut().as_mut_slice() });
+    let mut scsi_state = StateHarder::default();
 
     let mut builder = Builder::new(
         driver,
@@ -102,6 +101,7 @@ async fn main(_spawner: Spawner) {
     let mut scsi = pico_usb_mass_storage::usbd_storage::subclass::scsi::Scsi::new(
         &mut builder,
         &mut scsi_state,
+        unsafe { USB_TRANSPORT_BUF.assume_init_mut().as_mut_slice() },
         USB_PACKET_SIZE,
         MAX_LUN,
     )
@@ -128,11 +128,12 @@ async fn main(_spawner: Spawner) {
     join(usb_fut, scsi_fut).await;
 }
 
-fn process_command<'d>(
-    mut command: Command<
-        ScsiCommand,
-        Scsi<BulkOnly<'d, embassy_rp::usb::Driver<'d, embassy_rp::peripherals::USB>, &mut [u8]>>,
-    >,
+type ScsiClass<'d> = Scsi<
+    BulkOnly<'d, embassy_rp::usb::Driver<'d, embassy_rp::peripherals::USB>, &'static mut [u8]>,
+>;
+
+fn process_command(
+    mut command: Command<ScsiCommand, ScsiClass<'_>>,
 ) -> Result<(), TransportError<BulkOnlyError>> {
     match command.kind {
         ScsiCommand::TestUnitReady { .. } => {

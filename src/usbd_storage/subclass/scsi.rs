@@ -182,7 +182,8 @@ impl<'d, D: Driver<'d>, Buf: BorrowMut<[u8]>> Scsi<BulkOnly<'d, D, Buf>> {
     /// [UsbBusAllocator]: usb_device::bus::UsbBusAllocator
     pub fn new(
         builder: &mut Builder<'d, D>,
-        state: &'d mut StateHarder<'d, Buf>,
+        state: &'d mut StateHarder<'d>,
+        buf: Buf,
         packet_size: u16,
         max_lun: u8,
     ) -> Result<Self, BulkOnlyError> {
@@ -201,7 +202,8 @@ impl<'d, D: Driver<'d>, Buf: BorrowMut<[u8]>> Scsi<BulkOnly<'d, D, Buf>> {
         let in_ep = alt.endpoint_bulk_in(packet_size);
         let out_ep = alt.endpoint_bulk_out(packet_size);
         drop(func);
-        BulkOnly::new(builder, in_ep, out_ep, state, max_lun).map(|transport| Self { transport })
+        BulkOnly::new(builder, in_ep, out_ep, state, buf, max_lun)
+            .map(|transport| Self { transport })
     }
 
     /// Drive subclass in both directions
