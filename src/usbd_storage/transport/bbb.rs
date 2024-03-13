@@ -44,8 +44,8 @@ pub enum BulkOnlyError {
 /// Raw Command Block bytes
 ///
 /// The `bytes` field is a truncated slice
-pub struct CommandBlock {
-    pub bytes: [u8; 16],
+pub struct CommandBlock<'a> {
+    pub bytes: &'a [u8],
     pub lun: u8,
 }
 
@@ -215,14 +215,10 @@ where
     pub fn get_command(&self) -> Option<CommandBlock> {
         match self.state.get() {
             State::Idle | State::CommandTransfer => None,
-            _ => {
-                let mut bytes = [0; 16];
-                bytes.copy_from_slice(&self.cbw.block[..self.cbw.block_len]);
-                Some(CommandBlock {
-                    bytes,
-                    lun: self.cbw.lun,
-                })
-            }
+            _ => Some(CommandBlock {
+                bytes: &self.cbw.block[..self.cbw.block_len],
+                lun: self.cbw.lun,
+            }),
         }
     }
 
