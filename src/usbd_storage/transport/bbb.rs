@@ -174,9 +174,6 @@ where
 
     /// Drives a transport by reading a single packet
     pub async fn read(&mut self) -> BulkOnlyTransportResult<()> {
-        if let State::Reset = self.state.get() {
-            self.enter_state(State::Idle);
-        }
         match self.state.get() {
             State::Idle | State::CommandTransfer => self.handle_read_cbw().await,
             State::DataTransferFromHost => self.handle_read_from_host().await,
@@ -302,8 +299,9 @@ where
     }
 
     async fn handle_read_cbw(&mut self) -> BulkOnlyTransportResult<()> {
-        self.read_packet().await?; // propagate if error or WouldBlock
-
+        while self.buf.available_read() < CBW_LEN {
+            self.read_packet().await?; // propagate if error or WouldBlock
+        }
         if self.buf.available_read() >= CBW_LEN {
             // try parse CBW if enough data available
             match self.try_parse_cbw() {
@@ -482,6 +480,10 @@ where
     }
 
     async fn read_packet(&mut self) -> BulkOnlyTransportResult<usize> {
+        // if let State::Reset = self.state.get() {
+        //     self.enter_state(State::Idle);
+        //     return Err(TransportError::Error(BulkOnlyError::InvalidState));
+        // }
         let count = self
             .buf
             .write_all_async(
@@ -490,7 +492,10 @@ where
                 OutEndPointReader::<'_, '_, D>(&mut self.out_ep),
             )
             .await?;
-
+        if let State::Reset = self.state.get() {
+            self.enter_state(State::Idle);
+            return Err(TransportError::Error(BulkOnlyError::InvalidState));
+        }
         trace!(
             "usb: bbb: Read bytes: {}, buf available: {}",
             count,
@@ -502,11 +507,18 @@ where
 
     /// Write single packet from [buf] returning number of bytes actually written
     async fn write_packet(&mut self) -> BulkOnlyTransportResult<usize> {
+        // if let State::Reset = self.state.get() {
+        //     self.enter_state(State::Idle);
+        //     return Err(TransportError::Error(BulkOnlyError::InvalidState));
+        // }
         let count = self
             .buf
             .read_async(InEndPointWriter::<'_, '_, D>(&mut self.in_ep))
             .await?;
-
+        if let State::Reset = self.state.get() {
+            self.enter_state(State::Idle);
+            return Err(TransportError::Error(BulkOnlyError::InvalidState));
+        }
         trace!(
             "usb: bbb: Wrote bytes: {}, buf available: {}",
             count,
@@ -562,7 +574,12 @@ impl<'d> Handler for Control<'d> {
         info!("usb: bbb: Recv reset");
         // self.in_ep.unstall();
         // self.out_ep.unstall();
-        self.state.set(State::Reset);
+        match self.state.get() {
+            State::Idle => {}
+            _ => {
+                self.state.set(State::Reset);
+            }
+        }
     }
 
     fn control_in<'a>(&'a mut self, req: Request, buf: &'a mut [u8]) -> Option<InResponse<'a>> {
