@@ -323,7 +323,7 @@ where
     }
 
     async fn handle_read_from_host(&mut self) -> BulkOnlyTransportResult<()> {
-        if !self.status_present() {
+        if !self.status_present() && self.cbw.data_transfer_len > 0 {
             let count = self.read_packet().await?; // propagate if error or WouldBlock
             self.cbw.data_transfer_len = self.cbw.data_transfer_len.saturating_sub(count as u32);
             trace!("usb: bbb: Data residue: {}", self.cbw.data_transfer_len);
