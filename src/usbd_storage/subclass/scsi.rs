@@ -235,8 +235,6 @@ impl<'d, D: Driver<'d>, Buf: BorrowMut<[u8]>> Scsi<BulkOnly<'d, D, Buf>> {
                 let lun = raw_cb.lun;
                 let kind = parse_cb(&raw_cb.bytes);
 
-                debug!("usb: scsi: Command: {}", kind);
-
                 loop {
                     callback(Command {
                         class: self,
