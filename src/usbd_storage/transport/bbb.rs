@@ -666,9 +666,10 @@ impl<'a, 'd, D: Driver<'d>> AsyncReader for InEndPointWriter<'a, 'd, D> {
 
     async fn read(&mut self, buf: &mut [u8]) -> Result<usize, Self::Error> {
         let packet_size = self.0.info().max_packet_size as usize;
+        let len = min(packet_size, buf.len());
         if !buf.is_empty() {
-            match self.0.write(&buf[..min(packet_size, buf.len())]).await {
-                Ok(_count) => Ok(buf.len()),
+            match self.0.write(&buf[..len]).await {
+                Ok(_count) => Ok(len),
                 Err(err) => Err(TransportError::Usb(err)),
             }
         } else {
