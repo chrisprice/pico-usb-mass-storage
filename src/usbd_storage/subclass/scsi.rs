@@ -8,7 +8,6 @@ use embassy_usb::Builder;
 use num_enum::TryFromPrimitive;
 #[cfg(feature = "bbb")]
 use {
-    crate::usbd_storage::fmt::debug,
     crate::usbd_storage::subclass::Command,
     crate::usbd_storage::transport::bbb::{BulkOnly, BulkOnlyError},
     crate::usbd_storage::transport::TransportError,
