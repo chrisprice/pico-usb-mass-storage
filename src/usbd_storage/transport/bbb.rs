@@ -2,7 +2,6 @@
 
 use crate::usbd_storage::buffer::{AsyncReader, AsyncWriter, Buffer};
 use crate::usbd_storage::transport::{CommandStatus, Transport, TransportError};
-use core::borrow::BorrowMut;
 use core::cell::Cell;
 use core::cmp::min;
 use core::mem::MaybeUninit;
@@ -100,19 +99,18 @@ pub struct Control<'a> {
 /// [read_data]: crate::transport::bbb::BulkOnly::read_data
 /// [write_data]: crate::transport::bbb::BulkOnly::write_data
 /// [try_write_data_all]: crate::transport::bbb::BulkOnly::try_write_data_all
-pub struct BulkOnly<'d, D: Driver<'d>, Buf: BorrowMut<[u8]>> {
+pub struct BulkOnly<'d, D: Driver<'d>> {
     in_ep: D::EndpointIn,
     out_ep: D::EndpointOut,
     state: &'d Cell<State>,
-    buf: Buffer<Buf>,
+    buf: Buffer<'d>,
     cbw: CommandBlockWrapper,
     cs: Option<CommandStatus>,
 }
 
-impl<'d, D, Buf> BulkOnly<'d, D, Buf>
+impl<'d, D> BulkOnly<'d, D>
 where
     D: Driver<'d>,
-    Buf: BorrowMut<[u8]>,
 {
     /// Creates a Bulk Only Transport instance
     ///
@@ -138,19 +136,21 @@ where
         in_ep: D::EndpointIn,
         out_ep: D::EndpointOut,
         state: &'d mut StateHarder<'d>,
-        buf: Buf,
+        buf: &'d mut [u8],
         max_lun: u8,
-    ) -> Result<BulkOnly<'d, D, Buf>, BulkOnlyError> {
+    ) -> Result<BulkOnly<'d, D>, BulkOnlyError> {
         if max_lun > 0x0F {
             return Err(BulkOnlyError::InvalidMaxLun);
         }
 
-        let buf_len = buf.borrow().len();
+        let buf_len = buf.len();
         let packet_size = in_ep.info().max_packet_size as usize;
         assert_eq!(packet_size, out_ep.info().max_packet_size as usize);
         if buf_len < CBW_LEN || buf_len < packet_size {
             return Err(BulkOnlyError::BufferTooSmall);
         }
+
+        let buf = Buffer::new(buf);
 
         let control = state.control.write(Control {
             state: &state.state,
@@ -162,7 +162,7 @@ where
         Ok(BulkOnly {
             in_ep,
             out_ep,
-            buf: Buffer::new(buf),
+            buf,
             cbw: Default::default(),
             cs: Default::default(),
             state: &state.state,
@@ -558,10 +558,9 @@ where
     }
 }
 
-impl<'d, D, Buf> Transport for BulkOnly<'d, D, Buf>
+impl<'d, D> Transport for BulkOnly<'d, D>
 where
     D: Driver<'d>,
-    Buf: BorrowMut<[u8]>,
 {
     const PROTO: u8 = TRANSPORT_BBB;
 }

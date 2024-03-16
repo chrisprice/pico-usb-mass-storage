@@ -120,9 +120,7 @@ async fn main(_spawner: Spawner) {
     join(usb_fut, scsi_fut).await;
 }
 
-type ScsiClass<'d> = Scsi<
-    BulkOnly<'d, embassy_rp::usb::Driver<'d, embassy_rp::peripherals::USB>, &'static mut [u8]>,
->;
+type ScsiClass<'d> = Scsi<BulkOnly<'d, embassy_rp::usb::Driver<'d, embassy_rp::peripherals::USB>>>;
 
 fn process_command(
     mut command: Command<ScsiCommand, ScsiClass<'_>>,

@@ -1,14 +1,13 @@
-use core::borrow::BorrowMut;
 use core::cmp::min;
 
-pub struct Buffer<T: BorrowMut<[u8]>> {
-    inner: T,
+pub struct Buffer<'a> {
+    inner: &'a mut [u8],
     rpos: usize, // next byte to read from
     wpos: usize, // next byte to write into
 }
 
-impl<T: BorrowMut<[u8]>> Buffer<T> {
-    pub fn new(inner: T) -> Buffer<T> {
+impl<'a> Buffer<'a> {
+    pub fn new(inner: &'a mut [u8]) -> Self {
         Buffer {
             inner,
             rpos: 0,
@@ -21,7 +20,7 @@ impl<T: BorrowMut<[u8]>> Buffer<T> {
     }
 
     pub fn available_write(&self) -> usize {
-        self.inner.borrow().len() - self.wpos
+        self.inner.len() - self.wpos
     }
 
     /// Returns number of bytes actually written
@@ -30,10 +29,9 @@ impl<T: BorrowMut<[u8]>> Buffer<T> {
             self.shift();
         }
         let count = min(self.available_write(), data.len());
-        let inner = self.inner.borrow_mut();
-        inner[self.wpos..(self.wpos + count)].copy_from_slice(&data[..count]);
+        self.inner[self.wpos..(self.wpos + count)].copy_from_slice(&data[..count]);
         self.wpos += count;
-        debug_assert!(self.wpos <= inner.len());
+        debug_assert!(self.wpos <= self.inner.len());
         count
     }
 
@@ -50,12 +48,10 @@ impl<T: BorrowMut<[u8]>> Buffer<T> {
             }
         }
 
-        let inner = self.inner.borrow_mut();
-
-        f(&mut inner[self.wpos..(self.wpos + max_count)]).map(|count| {
-            let advance_by = min(count, inner.len() - self.wpos);
+        f(&mut self.inner[self.wpos..(self.wpos + max_count)]).map(|count| {
+            let advance_by = min(count, self.inner.len() - self.wpos);
             self.wpos += advance_by;
-            debug_assert!(self.wpos <= inner.len());
+            debug_assert!(self.wpos <= self.inner.len());
             advance_by
         })
     }
@@ -73,22 +69,19 @@ impl<T: BorrowMut<[u8]>> Buffer<T> {
             }
         }
 
-        let inner = self.inner.borrow_mut();
-
-        f.write(&mut inner[self.wpos..(self.wpos + max_count)])
+        f.write(&mut self.inner[self.wpos..(self.wpos + max_count)])
             .await
             .map(|count| {
-                let advance_by = min(count, inner.len() - self.wpos);
+                let advance_by = min(count, self.inner.len() - self.wpos);
                 self.wpos += advance_by;
-                debug_assert!(self.wpos <= inner.len());
+                debug_assert!(self.wpos <= self.inner.len());
                 advance_by
             })
     }
 
     pub fn read<E>(&mut self, f: impl FnOnce(&mut [u8]) -> Result<usize, E>) -> Result<usize, E> {
         let boundary = self.rpos + self.available_read();
-        let inner = self.inner.borrow_mut();
-        f(&mut inner[self.rpos..boundary]).map(|count| {
+        f(&mut self.inner[self.rpos..boundary]).map(|count| {
             let advance_by = min(count, self.available_read());
             self.rpos += advance_by;
             debug_assert!(self.rpos <= self.wpos);
@@ -98,13 +91,14 @@ impl<T: BorrowMut<[u8]>> Buffer<T> {
 
     pub async fn read_async<E>(&mut self, mut f: impl AsyncReader<Error = E>) -> Result<usize, E> {
         let boundary = self.rpos + self.available_read();
-        let inner = self.inner.borrow_mut();
-        f.read(&mut inner[self.rpos..boundary]).await.map(|count| {
-            let advance_by = min(count, self.available_read());
-            self.rpos += advance_by;
-            debug_assert!(self.rpos <= self.wpos);
-            advance_by
-        })
+        f.read(&mut self.inner[self.rpos..boundary])
+            .await
+            .map(|count| {
+                let advance_by = min(count, self.available_read());
+                self.rpos += advance_by;
+                debug_assert!(self.rpos <= self.wpos);
+                advance_by
+            })
     }
 
     pub fn clean(&mut self) {
@@ -116,8 +110,8 @@ impl<T: BorrowMut<[u8]>> Buffer<T> {
         if self.rpos != self.wpos {
             unsafe {
                 core::ptr::copy(
-                    &self.inner.borrow()[self.rpos] as *const u8,
-                    &mut self.inner.borrow_mut()[0] as *mut u8,
+                    &self.inner[self.rpos] as *const u8,
+                    &mut self.inner[0] as *mut u8,
                     self.available_read(),
                 )
             }
@@ -146,7 +140,7 @@ mod tests {
 
     #[test]
     fn write_when_space_available() {
-        let mut buf = Buffer::new([0u8; 8]);
+        let mut buf = Buffer::new(&mut [0u8; 8]);
         assert_eq!(5, buf.write(&DATA[..5]));
         assert_eq!(5, buf.available_read());
         assert_eq!(3, buf.available_write());
@@ -154,7 +148,7 @@ mod tests {
 
     #[test]
     fn write_shift() {
-        let mut buf = Buffer::new([0u8; 10]);
+        let mut buf = Buffer::new(&mut [0u8; 10]);
         // write
         assert_eq!(8, buf.write(&DATA[..8]));
         assert_eq!(8, buf.available_read());
@@ -179,7 +173,7 @@ mod tests {
 
     #[test]
     fn write_all_shift() {
-        let mut buf = Buffer::new([0u8; 10]);
+        let mut buf = Buffer::new(&mut [0u8; 10]);
         let wpos = 6;
         let rpos = 5;
         buf.wpos = wpos;
@@ -193,7 +187,7 @@ mod tests {
 
     #[test]
     fn write_full_read_full() {
-        let mut buf = Buffer::new([0u8; 10]);
+        let mut buf = Buffer::new(&mut [0u8; 10]);
         // write full
         assert_eq!(10, buf.write(&DATA[..10]));
         assert_eq!(10, buf.available_read());

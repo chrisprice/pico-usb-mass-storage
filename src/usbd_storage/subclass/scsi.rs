@@ -12,7 +12,6 @@ use {
     crate::usbd_storage::subclass::Command,
     crate::usbd_storage::transport::bbb::{BulkOnly, BulkOnlyError},
     crate::usbd_storage::transport::TransportError,
-    core::borrow::BorrowMut,
 };
 
 /// SCSI device subclass code
@@ -158,7 +157,7 @@ pub struct Scsi<T: Transport> {
 ///
 /// [Bulk Only Transport]: crate::transport::bbb::BulkOnly
 #[cfg(feature = "bbb")]
-impl<'d, D: Driver<'d>, Buf: BorrowMut<[u8]>> Scsi<BulkOnly<'d, D, Buf>> {
+impl<'d, D: Driver<'d>> Scsi<BulkOnly<'d, D>> {
     /// Creates a SCSI over Bulk Only Transport instance
     ///
     /// # Arguments
@@ -181,20 +180,20 @@ impl<'d, D: Driver<'d>, Buf: BorrowMut<[u8]>> Scsi<BulkOnly<'d, D, Buf>> {
     pub fn new(
         builder: &mut Builder<'d, D>,
         state: &'d mut StateHarder<'d>,
-        buf: Buf,
+        buf: &'d mut [u8],
         packet_size: u16,
         max_lun: u8,
     ) -> Result<Self, BulkOnlyError> {
         let mut func = builder.function(
             CLASS_MASS_STORAGE,
             SUBCLASS_SCSI,
-            <BulkOnly<D, Buf> as Transport>::PROTO,
+            <BulkOnly<D> as Transport>::PROTO,
         );
         let mut interface = func.interface();
         let mut alt = interface.alt_setting(
             CLASS_MASS_STORAGE,
             SUBCLASS_SCSI,
-            <BulkOnly<D, Buf> as Transport>::PROTO,
+            <BulkOnly<D> as Transport>::PROTO,
             None,
         );
         let in_ep = alt.endpoint_bulk_in(packet_size);
@@ -213,7 +212,7 @@ impl<'d, D: Driver<'d>, Buf: BorrowMut<[u8]>> Scsi<BulkOnly<'d, D, Buf>> {
     /// * `callback` - closure, in which the SCSI command is processed
     pub async fn poll<F>(&mut self, mut callback: F) -> Result<(), EndpointError>
     where
-        F: FnMut(Command<ScsiCommand, Scsi<BulkOnly<'d, D, Buf>>>),
+        F: FnMut(Command<ScsiCommand, Scsi<BulkOnly<'d, D>>>),
     {
         fn map_ignore<T>(
             res: Result<T, TransportError<BulkOnlyError>>,
