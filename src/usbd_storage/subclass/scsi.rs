@@ -180,7 +180,6 @@ impl<'d, D: Driver<'d>> Scsi<BulkOnly<'d, D>> {
     pub fn new(
         builder: &mut Builder<'d, D>,
         state: &'d mut StateHarder<'d>,
-        buf: &'d mut [u8],
         packet_size: u16,
         max_lun: u8,
     ) -> Result<Self, BulkOnlyError> {
@@ -199,8 +198,7 @@ impl<'d, D: Driver<'d>> Scsi<BulkOnly<'d, D>> {
         let in_ep = alt.endpoint_bulk_in(packet_size);
         let out_ep = alt.endpoint_bulk_out(packet_size);
         drop(func);
-        BulkOnly::new(builder, in_ep, out_ep, state, buf, max_lun)
-            .map(|transport| Self { transport })
+        BulkOnly::new(builder, in_ep, out_ep, state, max_lun).map(|transport| Self { transport })
     }
 
     /// Drive subclass in both directions
@@ -230,7 +228,7 @@ impl<'d, D: Driver<'d>> Scsi<BulkOnly<'d, D>> {
             // exec callback only if user action required
             if !self.transport.has_status() {
                 let lun = raw_cb.lun;
-                let kind = parse_cb(&raw_cb.bytes);
+                let kind = parse_cb(raw_cb.bytes);
 
                 loop {
                     callback(Command {

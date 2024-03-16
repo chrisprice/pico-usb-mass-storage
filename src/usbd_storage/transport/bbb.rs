@@ -70,13 +70,15 @@ type BulkOnlyTransportResult<T> = Result<T, TransportError<BulkOnlyError>>;
 
 pub struct StateHarder<'a> {
     state: Cell<State>,
+    buffer: &'a mut [u8],
     control: MaybeUninit<Control<'a>>,
 }
 
-impl<'a> Default for StateHarder<'a> {
-    fn default() -> Self {
+impl<'a> StateHarder<'a> {
+    pub fn new(buffer: &'a mut [u8]) -> Self {
         Self {
             state: Cell::new(State::Idle),
+            buffer,
             control: MaybeUninit::uninit(),
         }
     }
@@ -136,21 +138,20 @@ where
         in_ep: D::EndpointIn,
         out_ep: D::EndpointOut,
         state: &'d mut StateHarder<'d>,
-        buf: &'d mut [u8],
         max_lun: u8,
     ) -> Result<BulkOnly<'d, D>, BulkOnlyError> {
         if max_lun > 0x0F {
             return Err(BulkOnlyError::InvalidMaxLun);
         }
 
-        let buf_len = buf.len();
+        let buf_len = state.buffer.len();
         let packet_size = in_ep.info().max_packet_size as usize;
         assert_eq!(packet_size, out_ep.info().max_packet_size as usize);
         if buf_len < CBW_LEN || buf_len < packet_size {
             return Err(BulkOnlyError::BufferTooSmall);
         }
 
-        let buf = Buffer::new(buf);
+        let buf = Buffer::new(state.buffer);
 
         let control = state.control.write(Control {
             state: &state.state,

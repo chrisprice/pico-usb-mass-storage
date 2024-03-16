@@ -78,7 +78,8 @@ async fn main(_spawner: Spawner) {
     let mut mos_descriptor = [0; 0];
     let mut control_buf = [0; 64];
 
-    let mut scsi_state = StateHarder::default();
+    let mut scsi_state =
+        StateHarder::new(unsafe { USB_TRANSPORT_BUF.assume_init_mut().as_mut_slice() });
 
     let mut builder = Builder::new(
         driver,
@@ -90,14 +91,7 @@ async fn main(_spawner: Spawner) {
         &mut control_buf,
     );
 
-    let mut scsi = Scsi::new(
-        &mut builder,
-        &mut scsi_state,
-        unsafe { USB_TRANSPORT_BUF.assume_init_mut().as_mut_slice() },
-        USB_PACKET_SIZE,
-        MAX_LUN,
-    )
-    .unwrap();
+    let mut scsi = Scsi::new(&mut builder, &mut scsi_state, USB_PACKET_SIZE, MAX_LUN).unwrap();
 
     let mut usb = builder.build();
     let usb_fut = usb.run();
