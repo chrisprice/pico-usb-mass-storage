@@ -1,6 +1,7 @@
 //! USB Mass Storage transports
 
 use core::fmt::Debug;
+use defmt::Format;
 use embassy_usb::driver::EndpointError;
 
 #[cfg(feature = "bbb")]
@@ -21,8 +22,7 @@ pub trait Transport {
 }
 
 /// Generic error type that could be used by [Transport] impls.
-#[derive(Debug)]
-#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+#[derive(Debug, Format)]
 pub enum TransportError<E: Debug> {
     /// USB stack error
     Usb(EndpointError),
@@ -34,8 +34,7 @@ pub enum TransportError<E: Debug> {
 ///
 /// Refer to the USB-MS doc.
 #[repr(u8)]
-#[derive(Default, Copy, Clone)]
-#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+#[derive(Default, Copy, Clone, Format)]
 pub enum CommandStatus {
     #[default]
     Passed = 0x00,

@@ -2,6 +2,7 @@
 
 use crate::usbd_storage::transport::bbb::StateHarder;
 use crate::usbd_storage::{transport::Transport, CLASS_MASS_STORAGE};
+use defmt::Format;
 use embassy_usb::driver::Driver;
 use embassy_usb::driver::EndpointError;
 use embassy_usb::Builder;
@@ -39,8 +40,7 @@ const READ_FORMAT_CAPACITIES: u8 = 0x23;
 /// SCSI command
 ///
 /// Refer to specifications (SPC,SAM,SBC,MMC,etc.)
-#[derive(Copy, Clone, Debug)]
-#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+#[derive(Copy, Clone, Debug, Format)]
 pub enum ScsiCommand {
     Unknown,
 
@@ -91,8 +91,7 @@ pub enum ScsiCommand {
 }
 
 #[repr(u8)]
-#[derive(Copy, Clone, Debug, TryFromPrimitive)]
-#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+#[derive(Copy, Clone, Debug, Format, TryFromPrimitive)]
 pub enum PageControl {
     CurrentValues = 0b00,
     ChangeableValues = 0b01,

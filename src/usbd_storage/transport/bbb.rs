@@ -1,12 +1,12 @@
 //! Bulk Only Transport (BBB/BOT)
 
 use crate::usbd_storage::buffer::{AsyncReader, AsyncWriter, Buffer};
-use crate::usbd_storage::fmt::{info, trace};
 use crate::usbd_storage::transport::{CommandStatus, Transport, TransportError};
 use core::borrow::BorrowMut;
 use core::cell::Cell;
 use core::cmp::min;
 use core::mem::MaybeUninit;
+use defmt::{info, trace, Format};
 use embassy_usb::control::{InResponse, Recipient, Request, RequestType};
 use embassy_usb::driver::{Driver, Endpoint, EndpointIn, EndpointOut};
 use embassy_usb::{Builder, Handler};
@@ -27,8 +27,7 @@ const CSW_LEN: usize = 13;
 struct InvalidCbwError; // Inner transport-specific error
 
 /// Bulk Only Transport error
-#[derive(Debug)]
-#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+#[derive(Debug, Format)]
 pub enum BulkOnlyError {
     /// Not enough space to fit additional data
     IoBufferOverflow,
@@ -50,8 +49,7 @@ pub struct CommandBlock<'a> {
     pub lun: u8,
 }
 
-#[derive(Debug, Copy, Clone)]
-#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+#[derive(Debug, Copy, Clone, Format)]
 enum State {
     Idle,                 // no active transfer
     CommandTransfer,      // reading CBW packets
@@ -62,8 +60,7 @@ enum State {
 }
 
 #[repr(u8)]
-#[derive(Default, Debug, Copy, Clone)]
-#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+#[derive(Default, Debug, Copy, Clone, Format)]
 enum DataDirection {
     Out,
     In,
@@ -608,8 +605,7 @@ impl<'d> Handler for Control<'d> {
     }
 }
 
-#[derive(Default, Debug, Copy, Clone)]
-#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+#[derive(Default, Debug, Copy, Clone, Format)]
 struct CommandBlockWrapper {
     tag: u32,
     data_transfer_len: u32,

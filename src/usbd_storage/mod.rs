@@ -26,7 +26,6 @@
 //! [Transport]: crate::transport::Transport
 
 pub(crate) mod buffer;
-pub(crate) mod fmt;
 pub mod subclass;
 pub mod transport;
 

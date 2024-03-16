@@ -69,10 +69,9 @@ overflow-checks = true
 
 [features]
 bbb = []
-defmt = []
 scsi = []
 ufi = []
-default = ["bbb", "defmt", "scsi"]
+default = ["bbb", "scsi"]
 
 # cargo build/run --release
 [profile.release]

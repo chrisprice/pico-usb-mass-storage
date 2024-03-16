@@ -56,8 +56,7 @@ pub fn lba_to_track(lba: u32, sec_trk: u8, head_trk: u8) -> u32 {
 /// UFI command
 ///
 /// Refer to specification
-#[derive(Copy, Clone, Debug)]
-#[cfg_attr(feature = "defmt", derive(defmt::Format))]
+#[derive(Copy, Clone, Debug, Format)]
 pub enum UfiCommand {
     Unknown,
 
