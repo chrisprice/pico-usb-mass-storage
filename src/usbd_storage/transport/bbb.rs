@@ -10,7 +10,6 @@ use defmt::{info, trace, Format};
 use embassy_usb::control::{InResponse, Recipient, Request, RequestType};
 use embassy_usb::driver::{Driver, Endpoint, EndpointIn, EndpointOut};
 use embassy_usb::{Builder, Handler};
-use ringbuffer::ConstGenericRingBuffer;
 
 /// Bulk Only Transport interface protocol
 pub(crate) const TRANSPORT_BBB: u8 = 0x50;
@@ -70,17 +69,15 @@ enum DataDirection {
 
 type BulkOnlyTransportResult<T> = Result<T, TransportError<BulkOnlyError>>;
 
-pub struct StateHarder<'a, const CAP: usize> {
+pub struct StateHarder<'a> {
     state: Cell<State>,
-    buffer: ConstGenericRingBuffer<u8, CAP>,
     control: MaybeUninit<Control<'a>>,
 }
 
-impl<'a, const CAP: usize> Default for StateHarder<'a, CAP> {
+impl<'a> Default for StateHarder<'a> {
     fn default() -> Self {
         Self {
             state: Cell::new(State::Idle),
-            buffer: ConstGenericRingBuffer::new(),
             control: MaybeUninit::uninit(),
         }
     }
@@ -136,11 +133,11 @@ where
     /// [InvalidMaxLun]: crate::transport::bbb::BulkOnlyError::InvalidMaxLun
     /// [BufferTooSmall]: crate::transport::bbb::BulkOnlyError::BufferTooSmall
     /// [UsbDAllocator]: usb_device::bus::UsbDAllocator
-    pub fn new<'b, const CAP: usize>(
+    pub fn new<'b>(
         builder: &'b mut Builder<'d, D>,
         in_ep: D::EndpointIn,
         out_ep: D::EndpointOut,
-        state: &'d mut StateHarder<'d, CAP>,
+        state: &'d mut StateHarder<'d>,
         buf: Buf,
         max_lun: u8,
     ) -> Result<BulkOnly<'d, D, Buf>, BulkOnlyError> {

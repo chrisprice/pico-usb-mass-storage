@@ -178,9 +178,9 @@ impl<'d, D: Driver<'d>, Buf: BorrowMut<[u8]>> Scsi<BulkOnly<'d, D, Buf>> {
     /// [InvalidMaxLun]: crate::transport::bbb::BulkOnlyError::InvalidMaxLun
     /// [BufferTooSmall]: crate::transport::bbb::BulkOnlyError::BufferTooSmall
     /// [UsbBusAllocator]: usb_device::bus::UsbBusAllocator
-    pub fn new<const CAP: usize>(
+    pub fn new(
         builder: &mut Builder<'d, D>,
-        state: &'d mut StateHarder<'d, CAP>,
+        state: &'d mut StateHarder<'d>,
         buf: Buf,
         packet_size: u16,
         max_lun: u8,

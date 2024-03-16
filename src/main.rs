@@ -78,7 +78,7 @@ async fn main(_spawner: Spawner) {
     let mut mos_descriptor = [0; 0];
     let mut control_buf = [0; 64];
 
-    let mut scsi_state = StateHarder::<'_, 512>::default();
+    let mut scsi_state = StateHarder::default();
 
     let mut builder = Builder::new(
         driver,
