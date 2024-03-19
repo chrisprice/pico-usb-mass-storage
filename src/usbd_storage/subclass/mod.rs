@@ -68,18 +68,16 @@ impl<'a, 'alloc, Bus: UsbBus + 'alloc, Buf: BorrowMut<[u8]>>
 #[cfg(all(feature = "bbb", feature = "scsi"))]
 impl<'a, 'd, D: Driver<'d>> Command<'a, ScsiCommand, Scsi<BulkOnly<'d, D>>> {
     /// [crate::transport::bbb::BulkOnly::read_data]
-    pub fn read_data(&mut self, dst: &mut [u8]) -> Result<usize, TransportError<BulkOnlyError>> {
-        self.class.transport.read_data(dst)
+    pub async fn read_data(
+        &mut self,
+        dst: &mut [u8],
+    ) -> Result<usize, TransportError<BulkOnlyError>> {
+        self.class.transport.read_data(dst).await
     }
 
     /// [crate::transport::bbb::BulkOnly::write_data]
-    pub fn write_data(&mut self, src: &[u8]) -> Result<usize, TransportError<BulkOnlyError>> {
-        self.class.transport.write_data(src)
-    }
-
-    /// [crate::transport::bbb::BulkOnly::try_write_data_all]
-    pub fn try_write_data_all(&mut self, src: &[u8]) -> Result<(), TransportError<BulkOnlyError>> {
-        self.class.transport.try_write_data_all(src)
+    pub async fn write_data(&mut self, src: &[u8]) -> Result<usize, TransportError<BulkOnlyError>> {
+        self.class.transport.write_data(src).await
     }
 
     pub fn pass(self) {

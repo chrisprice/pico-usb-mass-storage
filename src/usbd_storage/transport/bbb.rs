@@ -1,6 +1,6 @@
 //! Bulk Only Transport (BBB/BOT)
 
-use crate::usbd_storage::buffer::{AsyncReader, AsyncWriter, Buffer};
+use crate::usbd_storage::buffer::{Buffer, ReaderMut, Writer};
 use crate::usbd_storage::transport::{CommandStatus, Transport, TransportError};
 use core::cell::Cell;
 use core::cmp::min;
@@ -89,6 +89,48 @@ pub struct Control<'a> {
     max_lun: u8,
 }
 
+struct Endpoints<'d, D: Driver<'d>> {
+    in_ep: D::EndpointIn,
+    out_ep: D::EndpointOut,
+}
+
+impl<'d, D: Driver<'d>> Endpoints<'d, D> {
+    fn new(in_ep: D::EndpointIn, out_ep: D::EndpointOut) -> Self {
+        assert_eq!(
+            in_ep.info().max_packet_size as usize,
+            out_ep.info().max_packet_size as usize
+        );
+        Self { in_ep, out_ep }
+    }
+
+    fn packet_size(&self) -> usize {
+        self.in_ep.info().max_packet_size as usize
+    }
+}
+
+impl<'d, D: Driver<'d>> ReaderMut for Endpoints<'d, D> {
+    type Error = TransportError<BulkOnlyError>;
+
+    async fn read(&mut self, buf: &mut [u8]) -> Result<usize, Self::Error> {
+        match self.out_ep.read(buf).await {
+            Ok(count) => Ok(count),
+            Err(err) => Err(TransportError::Usb(err)),
+        }
+    }
+}
+
+impl<'d, D: Driver<'d>> Writer for Endpoints<'d, D> {
+    type Error = TransportError<BulkOnlyError>;
+
+    async fn write(&mut self, buf: &[u8]) -> Result<usize, Self::Error> {
+        let len = min(self.packet_size(), buf.len());
+        match self.in_ep.write(&buf[..len]).await {
+            Ok(_) => Ok(len),
+            Err(err) => Err(TransportError::Usb(err)),
+        }
+    }
+}
+
 /// Bulk Only Transport
 ///
 /// Expected to be driven via [write] and [read] methods.
@@ -102,8 +144,7 @@ pub struct Control<'a> {
 /// [write_data]: crate::transport::bbb::BulkOnly::write_data
 /// [try_write_data_all]: crate::transport::bbb::BulkOnly::try_write_data_all
 pub struct BulkOnly<'d, D: Driver<'d>> {
-    in_ep: D::EndpointIn,
-    out_ep: D::EndpointOut,
+    endpoints: Endpoints<'d, D>,
     state: &'d Cell<State>,
     buf: Buffer<'d>,
     cbw: CommandBlockWrapper,
@@ -144,10 +185,10 @@ where
             return Err(BulkOnlyError::InvalidMaxLun);
         }
 
+        let endpoints = Endpoints::new(in_ep, out_ep);
+
         let buf_len = state.buffer.len();
-        let packet_size = in_ep.info().max_packet_size as usize;
-        assert_eq!(packet_size, out_ep.info().max_packet_size as usize);
-        if buf_len < CBW_LEN || buf_len < packet_size {
+        if buf_len < CBW_LEN || buf_len < endpoints.packet_size() {
             return Err(BulkOnlyError::BufferTooSmall);
         }
 
@@ -161,8 +202,7 @@ where
         builder.handler(control);
 
         Ok(BulkOnly {
-            in_ep,
-            out_ep,
+            endpoints,
             buf,
             cbw: Default::default(),
             cs: Default::default(),
@@ -227,18 +267,11 @@ where
     /// during any but OUT Data Transfer state.
     ///
     /// [BulkOnlyError::InvalidState]: crate::transport::bbb::BulkOnlyError::InvalidState
-    pub fn read_data(&mut self, dst: &mut [u8]) -> BulkOnlyTransportResult<usize> {
+    pub async fn read_data(&mut self, dst: &mut [u8]) -> BulkOnlyTransportResult<usize> {
         if !matches!(self.state.get(), State::DataTransferFromHost) {
             return Err(TransportError::Error(BulkOnlyError::InvalidState));
         }
-        Ok(self
-            .buf
-            .read(|buf| {
-                let size = min(dst.len(), buf.len());
-                dst[..size].copy_from_slice(buf);
-                Ok::<usize, ()>(size)
-            })
-            .unwrap())
+        Ok(self.buf.read(dst).await.expect("infalible"))
     }
 
     /// Writes data from the IO buffer returning the number of bytes actually written
@@ -251,13 +284,14 @@ where
     /// during any but IN Data Transfer state.
     ///
     /// [BulkOnlyError::InvalidState]: crate::transport::bbb::BulkOnlyError::InvalidState
-    pub fn write_data(&mut self, src: &[u8]) -> BulkOnlyTransportResult<usize> {
+    pub async fn write_data(&mut self, src: &[u8]) -> BulkOnlyTransportResult<usize> {
         if !matches!(self.state.get(), State::DataTransferToHost) {
             return Err(TransportError::Error(BulkOnlyError::InvalidState));
         }
         if !self.status_present() {
             let len = self.cbw.data_transfer_len as usize;
-            Ok(self.buf.write(&src[..min(src.len(), len)]))
+            let len = min(src.len(), len);
+            Ok(self.buf.write(&src[..len]).await.unwrap())
         } else {
             Err(TransportError::Error(BulkOnlyError::InvalidState))
         }
@@ -271,21 +305,17 @@ where
     ///
     /// [BulkOnlyError::IoBufferOverflow]: crate::transport::bbb::BulkOnlyError::IoBufferOverflow
     /// [BulkOnlyError::InvalidState]: crate::transport::bbb::BulkOnlyError::InvalidState
-    pub fn try_write_data_all(&mut self, src: &[u8]) -> BulkOnlyTransportResult<()> {
+    pub async fn try_write_data_all(&mut self, src: &[u8]) -> BulkOnlyTransportResult<()> {
         if !matches!(self.state.get(), State::DataTransferToHost) {
             return Err(TransportError::Error(BulkOnlyError::InvalidState));
         }
         if !self.status_present() {
-            self.buf
-                .write_all(
-                    src.len(),
-                    TransportError::Error(BulkOnlyError::IoBufferOverflow),
-                    |dst| {
-                        dst[..src.len()].copy_from_slice(src);
-                        Ok(src.len())
-                    },
-                )
-                .map(|_| ())
+            let count = self.buf.write(src).await.expect("infalible");
+            if count == src.len() {
+                Ok(())
+            } else {
+                Err(TransportError::Error(BulkOnlyError::IoBufferOverflow))
+            }
         } else {
             Err(TransportError::Error(BulkOnlyError::InvalidState))
         }
@@ -302,7 +332,7 @@ where
         }
         if self.buf.available_read() >= CBW_LEN {
             // try parse CBW if enough data available
-            match self.try_parse_cbw() {
+            match self.try_parse_cbw().await {
                 Ok(cbw) => {
                     info!("usb: bbb: Recv CBW: {}", cbw);
                     self.start_data_transfer(cbw);
@@ -335,7 +365,7 @@ where
         // If the next packet is expected to be full (according to data residue) but it isn't,
         // return an error
 
-        let max_packet_size = self.packet_size() as u32;
+        let max_packet_size = self.endpoints.packet_size() as u32;
         let full_packet_expected =
             self.cbw.data_transfer_len >= max_packet_size && !self.status_present();
         let full_packet = self.buf.available_read() >= max_packet_size as usize;
@@ -404,7 +434,10 @@ where
         // write CSW into buffer
         let csw = self.build_csw().unwrap();
         self.buf.clean();
-        self.buf.write(csw.as_slice());
+        let count = self.buf.write(csw.as_slice()).await.expect("infalible");
+        if count != csw.len() {
+            return Err(TransportError::Error(BulkOnlyError::IoBufferOverflow));
+        }
 
         self.handle_write_csw().await
     }
@@ -426,7 +459,7 @@ where
     }
 
     /// The caller must ensure that there is enough data available
-    fn try_parse_cbw(&mut self) -> Result<CommandBlockWrapper, InvalidCbwError> {
+    async fn try_parse_cbw(&mut self) -> Result<CommandBlockWrapper, InvalidCbwError> {
         debug_assert!(matches!(
             self.state.get(),
             State::Idle | State::CommandTransfer
@@ -435,12 +468,11 @@ where
 
         // read CBW from buf
         let mut raw_cbw = [0u8; CBW_LEN];
-        self.buf
-            .read::<()>(|buf| {
-                raw_cbw.copy_from_slice(&buf[..CBW_LEN]); // buf.len() checked in the beginning
-                Ok(CBW_LEN)
-            })
-            .unwrap();
+        let _ = self
+            .buf
+            .read(raw_cbw.as_mut_slice())
+            .await
+            .expect("infalible"); // checked above
 
         // check if CBW is valid. Spec. 6.2.1
         if !raw_cbw.starts_with(&CBW_SIGNATURE_LE) {
@@ -472,24 +504,12 @@ where
         self.cbw = cbw;
     }
 
-    #[inline]
-    fn packet_size(&self) -> usize {
-        self.in_ep.info().max_packet_size as usize // same for both In and Out EPs
-    }
-
     async fn read_packet(&mut self) -> BulkOnlyTransportResult<usize> {
         // if let State::Reset = self.state.get() {
         //     self.enter_state(State::Idle);
         //     return Err(TransportError::Error(BulkOnlyError::InvalidState));
         // }
-        let count = self
-            .buf
-            .write_all_async(
-                self.packet_size(),
-                TransportError::Error(BulkOnlyError::IoBufferOverflow),
-                OutEndPointReader::<'_, '_, D>(&mut self.out_ep),
-            )
-            .await?;
+        let count = self.buf.write_mut(&mut self.endpoints).await?;
         if let State::Reset = self.state.get() {
             self.enter_state(State::Idle);
             return Err(TransportError::Error(BulkOnlyError::InvalidState));
@@ -509,10 +529,7 @@ where
         //     self.enter_state(State::Idle);
         //     return Err(TransportError::Error(BulkOnlyError::InvalidState));
         // }
-        let count = self
-            .buf
-            .read_async(InEndPointWriter::<'_, '_, D>(&mut self.in_ep))
-            .await?;
+        let count = self.buf.read(&mut self.endpoints).await?;
         if let State::Reset = self.state.get() {
             self.enter_state(State::Idle);
             return Err(TransportError::Error(BulkOnlyError::InvalidState));
@@ -639,37 +656,5 @@ impl CommandBlockWrapper {
             block_len: block_len as usize,
             block: value[11..].try_into().unwrap(), // ok, cause we checked a length
         })
-    }
-}
-
-struct OutEndPointReader<'a, 'd, D: Driver<'d>>(&'a mut D::EndpointOut);
-
-impl<'a, 'd, D: Driver<'d>> AsyncWriter for OutEndPointReader<'a, 'd, D> {
-    type Error = TransportError<BulkOnlyError>;
-
-    async fn write(&mut self, buf: &mut [u8]) -> Result<usize, Self::Error> {
-        match self.0.read(buf).await {
-            Ok(count) => Ok(count),
-            Err(err) => Err(TransportError::Usb(err)),
-        }
-    }
-}
-
-struct InEndPointWriter<'a, 'd, D: Driver<'d>>(&'a mut D::EndpointIn);
-
-impl<'a, 'd, D: Driver<'d>> AsyncReader for InEndPointWriter<'a, 'd, D> {
-    type Error = TransportError<BulkOnlyError>;
-
-    async fn read(&mut self, buf: &mut [u8]) -> Result<usize, Self::Error> {
-        let packet_size = self.0.info().max_packet_size as usize;
-        let len = min(packet_size, buf.len());
-        if !buf.is_empty() {
-            match self.0.write(&buf[..len]).await {
-                Ok(_count) => Ok(len),
-                Err(err) => Err(TransportError::Usb(err)),
-            }
-        } else {
-            Ok(0) // not enough data in buf, though it's not an error
-        }
     }
 }

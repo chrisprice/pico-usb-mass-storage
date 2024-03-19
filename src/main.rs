@@ -1,7 +1,7 @@
 #![no_std]
 #![no_main]
 
-use core::mem::MaybeUninit;
+use core::{marker::PhantomData, mem::MaybeUninit};
 use defmt::error;
 use defmt_rtt as _;
 use embassy_executor::Spawner;
@@ -16,7 +16,7 @@ use embassy_usb::{Builder, Config};
 use panic_probe as _;
 use pico_usb_mass_storage::usbd_storage::{
     subclass::{
-        scsi::{Scsi, ScsiCommand},
+        scsi::{CommandHandler, Scsi, ScsiCommand},
         Command,
     },
     transport::{
@@ -97,14 +97,9 @@ async fn main(_spawner: Spawner) {
     let usb_fut = usb.run();
 
     let scsi_fut = async {
+        let mut handler = Handler(PhantomData);
         loop {
-            let _ = scsi
-                .poll(|command| {
-                    if let Err(err) = process_command(command) {
-                        error!("{}", err);
-                    }
-                })
-                .await;
+            let _ = scsi.poll(&mut handler).await;
             Timer::after_millis(1).await;
         }
     };
@@ -114,17 +109,25 @@ async fn main(_spawner: Spawner) {
     join(usb_fut, scsi_fut).await;
 }
 
-type ScsiClass<'d> = Scsi<BulkOnly<'d, embassy_rp::usb::Driver<'d, embassy_rp::peripherals::USB>>>;
+struct Handler<'d, D: embassy_usb::driver::Driver<'d>>(PhantomData<&'d D>);
 
-fn process_command(
-    mut command: Command<ScsiCommand, ScsiClass<'_>>,
+impl<'d, D: embassy_usb::driver::Driver<'d>> CommandHandler<'d, D> for Handler<'d, D> {
+    async fn handle<'a>(&'a mut self, command: Command<'a, ScsiCommand, Scsi<BulkOnly<'d, D>>>) {
+        if let Err(err) = process_command(command).await {
+            error!("{}", err);
+        }
+    }
+}
+
+async fn process_command<'a, 'd, D: embassy_usb::driver::Driver<'d>>(
+    mut command: Command<'a, ScsiCommand, Scsi<BulkOnly<'d, D>>>,
 ) -> Result<(), TransportError<BulkOnlyError>> {
     match command.kind {
         ScsiCommand::TestUnitReady { .. } => {
             command.pass();
         }
         ScsiCommand::Inquiry { .. } => {
-            command.try_write_data_all(&[
+            let data = [
                 0x00, // periph qualifier, periph device type
                 0x80, // Removable
                 0x04, // SPC-2 compliance
@@ -137,11 +140,15 @@ fn process_command(
                 b'1', b'0', b'0', b'k', b' ', b'o', b'f', b' ', b'y', b'o', b'u', b'r', b' ', b'f',
                 b'i', b'n', // 16-byte product identification
                 b'1', b'.', b'2', b'3', // 4-byte product revision
-            ])?;
+            ];
+            let count = command.write_data(&data).await?;
+            if count != data.len() {
+                return Err(TransportError::Error(BulkOnlyError::IoBufferOverflow));
+            }
             command.pass();
         }
         ScsiCommand::RequestSense { .. } => unsafe {
-            command.try_write_data_all(&[
+            let data = [
                 0x70,                         // RESPONSE CODE. Set to 70h for information on current errors
                 0x00,                         // obsolete
                 STATE.sense_key.unwrap_or(0), // Bits 3..0: SENSE KEY. Contains information describing the error.
@@ -160,7 +167,11 @@ fn process_command(
                 0x00,
                 0x00,
                 0x00,
-            ])?;
+            ];
+            let count = command.write_data(&data).await?;
+            if count != data.len() {
+                return Err(TransportError::Error(BulkOnlyError::IoBufferOverflow));
+            }
             STATE.reset();
             command.pass();
         },
@@ -168,14 +179,20 @@ fn process_command(
             let mut data = [0u8; 8];
             let _ = &mut data[0..4].copy_from_slice(&u32::to_be_bytes(BLOCKS - 1));
             let _ = &mut data[4..8].copy_from_slice(&u32::to_be_bytes(BLOCK_SIZE));
-            command.try_write_data_all(&data)?;
+            let count = command.write_data(&data).await?;
+            if count != data.len() {
+                return Err(TransportError::Error(BulkOnlyError::IoBufferOverflow));
+            }
             command.pass();
         }
         ScsiCommand::ReadCapacity16 { .. } => {
             let mut data = [0u8; 16];
             let _ = &mut data[0..8].copy_from_slice(&u32::to_be_bytes(BLOCKS - 1));
             let _ = &mut data[8..12].copy_from_slice(&u32::to_be_bytes(BLOCK_SIZE));
-            command.try_write_data_all(&data)?;
+            let count = command.write_data(&data).await?;
+            if count != data.len() {
+                return Err(TransportError::Error(BulkOnlyError::IoBufferOverflow));
+            }
             command.pass();
         }
         ScsiCommand::ReadFormatCapacities { .. } => {
@@ -190,7 +207,10 @@ fn process_command(
             data[10] = block_length_be[2];
             data[11] = block_length_be[3];
 
-            command.try_write_data_all(&data)?;
+            let count = command.write_data(&data).await?;
+            if count != data.len() {
+                return Err(TransportError::Error(BulkOnlyError::IoBufferOverflow));
+            }
             command.pass();
         }
         ScsiCommand::Read { lba, len } => unsafe {
@@ -203,7 +223,7 @@ fn process_command(
                 // Uncomment this in order to push data in chunks smaller than a USB packet.
                 // let end = min(start + USB_PACKET_SIZE as usize - 1, end);
 
-                let count = command.write_data(&STORAGE[start..end])?;
+                let count = command.write_data(&STORAGE[start..end]).await?;
                 STATE.storage_offset += count;
             } else {
                 command.pass();
@@ -216,7 +236,7 @@ fn process_command(
             if STATE.storage_offset != (len * BLOCK_SIZE) as usize {
                 let start = (BLOCK_SIZE * lba) as usize + STATE.storage_offset;
                 let end = (BLOCK_SIZE * lba) as usize + (BLOCK_SIZE * len) as usize;
-                let count = command.read_data(&mut STORAGE[start..end])?;
+                let count = command.read_data(&mut STORAGE[start..end]).await?;
                 STATE.storage_offset += count;
 
                 if STATE.storage_offset == (len * BLOCK_SIZE) as usize {
@@ -229,16 +249,24 @@ fn process_command(
             }
         },
         ScsiCommand::ModeSense6 { .. } => {
-            command.try_write_data_all(&[
+            let data = [
                 0x03, // number of bytes that follow
                 0x00, // the media type is SBC
                 0x00, // not write-protected, no cache-control bytes support
                 0x00, // no mode-parameter block descriptors
-            ])?;
+            ];
+            let count = command.write_data(&data).await?;
+            if count != data.len() {
+                return Err(TransportError::Error(BulkOnlyError::IoBufferOverflow));
+            }
             command.pass();
         }
         ScsiCommand::ModeSense10 { .. } => {
-            command.try_write_data_all(&[0x00, 0x06, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00])?;
+            let data = [0x00, 0x06, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00];
+            let count = command.write_data(&data).await?;
+            if count != data.len() {
+                return Err(TransportError::Error(BulkOnlyError::IoBufferOverflow));
+            }
             command.pass();
         }
         ref unknown_scsi_kind => {

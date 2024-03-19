@@ -1,5 +1,7 @@
 //! USB SCSI
 
+use core::future::Future;
+
 use crate::usbd_storage::transport::bbb::StateHarder;
 use crate::usbd_storage::{transport::Transport, CLASS_MASS_STORAGE};
 use defmt::Format;
@@ -208,10 +210,10 @@ impl<'d, D: Driver<'d>> Scsi<BulkOnly<'d, D>> {
     ///
     /// # Arguments
     /// * `callback` - closure, in which the SCSI command is processed
-    pub async fn poll<F>(&mut self, mut callback: F) -> Result<(), EndpointError>
-    where
-        F: FnMut(Command<ScsiCommand, Scsi<BulkOnly<'d, D>>>),
-    {
+    pub async fn poll(
+        &mut self,
+        callback: &mut impl CommandHandler<'d, D>,
+    ) -> Result<(), EndpointError> {
         fn map_ignore<T>(
             res: Result<T, TransportError<BulkOnlyError>>,
         ) -> Result<(), EndpointError> {
@@ -231,11 +233,13 @@ impl<'d, D: Driver<'d>> Scsi<BulkOnly<'d, D>> {
                 let kind = parse_cb(raw_cb.bytes);
 
                 loop {
-                    callback(Command {
-                        class: self,
-                        kind,
-                        lun,
-                    });
+                    callback
+                        .handle(Command {
+                            class: self,
+                            kind,
+                            lun,
+                        })
+                        .await;
 
                     // drive transport in both directions after user action.
                     // exec callback if not enough data
@@ -257,4 +261,11 @@ impl<'d, D: Driver<'d>> Scsi<BulkOnly<'d, D>> {
 
         Ok(())
     }
+}
+
+pub trait CommandHandler<'d, D: Driver<'d>> {
+    fn handle<'a>(
+        &'a mut self,
+        cmd: Command<'a, ScsiCommand, Scsi<BulkOnly<'d, D>>>,
+    ) -> impl Future<Output = ()>;
 }
