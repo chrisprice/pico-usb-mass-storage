@@ -1,10 +1,11 @@
 use core::future::Future;
 
 use defmt::info;
+use embassy_sync::blocking_mutex::raw::RawMutex;
 use embassy_usb::driver::Driver;
 use embedded_io_async::{Read, ReadExactError, Write};
 
-use crate::usb_mass_storage::{endpoints::Endpoints, Error};
+use crate::usb_mass_storage::{endpoints::Endpoints, TransportError};
 
 use self::{
     cbw::{CommandBlockWrapper, DataDirection, CBW_LEN},
@@ -19,31 +20,34 @@ pub struct CommandBlock<'a> {
     pub lun: u8,
 }
 
-pub struct CommandFailed;
+pub enum CommandError {
+    CommandFailed,
+    TransportError(TransportError),
+}
 
 pub trait Handler {
     fn data_transfer_from_host(
         &mut self,
         cb: &CommandBlock,
-        reader: &mut impl embedded_io_async::Read<Error = Error>,
-    ) -> impl Future<Output = Result<(), CommandFailed>>;
+        reader: &mut impl embedded_io_async::Read<Error = TransportError>,
+    ) -> impl Future<Output = Result<(), CommandError>>;
     fn data_transfer_to_host(
         &mut self,
         cb: &CommandBlock,
-        writer: &mut impl embedded_io_async::Write<Error = Error>,
-    ) -> impl Future<Output = Result<(), CommandFailed>>;
+        writer: &mut impl embedded_io_async::Write<Error = TransportError>,
+    ) -> impl Future<Output = Result<(), CommandError>>;
     fn no_data_transfer(
         &mut self,
         cb: &CommandBlock,
-    ) -> impl Future<Output = Result<(), CommandFailed>>;
+    ) -> impl Future<Output = Result<(), CommandError>>;
 }
 
-pub struct BulkOnlyTransport<'d, D: Driver<'d>> {
-    endpoints: Endpoints<'d, D>,
+pub struct BulkOnlyTransport<'d, D: Driver<'d>, M: RawMutex> {
+    endpoints: Endpoints<'d, D, M>,
 }
 
-impl<'d, D: Driver<'d>> BulkOnlyTransport<'d, D> {
-    pub fn new(endpoints: Endpoints<'d, D>) -> Self {
+impl<'d, D: Driver<'d>, M: RawMutex> BulkOnlyTransport<'d, D, M> {
+    pub fn new(endpoints: Endpoints<'d, D, M>) -> Self {
         Self { endpoints }
     }
 
@@ -51,10 +55,17 @@ impl<'d, D: Driver<'d>> BulkOnlyTransport<'d, D> {
         loop {
             // TODO: the error handling is non-existent here
             let mut buf = [0u8; CBW_LEN];
-            if let Err(ReadExactError::UnexpectedEof) = self.endpoints.read_exact(&mut buf).await {
-                info!("Unexpected EOF");
-                continue;
-            }
+            match self.endpoints.read_exact(&mut buf).await {
+                Ok(_) => {}
+                Err(ReadExactError::Other(e)) => {
+                    info!("Transport error reading CBW {}", e);
+                    continue;
+                }
+                Err(ReadExactError::UnexpectedEof) => {
+                    info!("Unexpected EOF reading CBW");
+                    continue;
+                }
+            };
             let cbw = CommandBlockWrapper::from_le_bytes(&buf).unwrap();
             let cb = CommandBlock {
                 bytes: &cbw.block[..cbw.block_len],
@@ -75,10 +86,20 @@ impl<'d, D: Driver<'d>> BulkOnlyTransport<'d, D> {
             };
             let status = match result {
                 Ok(()) => CommandStatus::Passed,
-                Err(_) => CommandStatus::Failed,
+                Err(CommandError::CommandFailed) => CommandStatus::Failed,
+                Err(CommandError::TransportError(e)) => {
+                    info!("Transport error processing command {}", e);
+                    continue;
+                }
             };
             let buf = build_csw(&cbw, status);
-            self.endpoints.write_all(&buf).await.unwrap();
+            match self.endpoints.write_all(&buf).await {
+                Ok(_) => {}
+                Err(e) => {
+                    info!("Transport error writing CSW {}", e);
+                    continue;
+                }
+            }
         }
     }
 }

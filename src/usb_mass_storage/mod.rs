@@ -2,6 +2,8 @@ use core::mem::MaybeUninit;
 
 use defmt::info;
 use defmt::Format;
+use embassy_sync::blocking_mutex::raw::RawMutex;
+use embassy_sync::signal::Signal;
 use embassy_usb::control::InResponse;
 use embassy_usb::control::Recipient;
 use embassy_usb::control::Request;
@@ -10,7 +12,7 @@ use embassy_usb::driver::Driver;
 use embassy_usb::driver::EndpointError;
 use embassy_usb::Builder;
 
-use crate::bulk_only_transport::CommandFailed;
+use crate::bulk_only_transport::CommandError;
 use crate::scsi::Handler;
 use crate::scsi::Scsi;
 
@@ -26,29 +28,25 @@ const CLASS_SPECIFIC_BULK_ONLY_MASS_STORAGE_RESET: u8 = 0xFF;
 const CLASS_SPECIFIC_GET_MAX_LUN: u8 = 0xFE;
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Format)]
-pub enum Error {
-    EndpointError(EndpointError),
+pub enum TransportError {
+    Endpoint(EndpointError),
+    Reset(),
 }
 
 // TODO: errors need revisiting
-impl From<Error> for CommandFailed {
-    fn from(err: Error) -> Self {
-        match err {
-            Error::EndpointError(e) => match e {
-                EndpointError::BufferOverflow => CommandFailed,
-                EndpointError::Disabled => CommandFailed,
-            },
-        }
+impl From<TransportError> for CommandError {
+    fn from(err: TransportError) -> Self {
+        CommandError::TransportError(err)
     }
 }
 
-pub struct UsbMassStorage<'d, D: Driver<'d>> {
-    scsi: Scsi<'d, D>,
+pub struct UsbMassStorage<'d, D: Driver<'d>, M: RawMutex> {
+    scsi: Scsi<'d, D, M>,
 }
 
-impl<'d, D: Driver<'d>> UsbMassStorage<'d, D> {
+impl<'d, D: Driver<'d>, M: RawMutex> UsbMassStorage<'d, D, M> {
     pub fn new(
-        state: &'d mut State,
+        state: &'d mut State<'d, M>,
         builder: &mut Builder<'d, D>,
         packet_size: u16,
         max_lun: u8,
@@ -68,10 +66,14 @@ impl<'d, D: Driver<'d>> UsbMassStorage<'d, D> {
         let endpoints = Endpoints::new(
             alt.endpoint_bulk_in(packet_size),
             alt.endpoint_bulk_out(packet_size),
+            &state.reset_signal,
         );
         drop(func);
 
-        let control = state.control.write(Control { max_lun });
+        let control = state.control.write(Control {
+            reset_signal: &state.reset_signal,
+            max_lun,
+        });
         builder.handler(control);
 
         Self {
@@ -84,23 +86,26 @@ impl<'d, D: Driver<'d>> UsbMassStorage<'d, D> {
     }
 }
 
-pub struct State {
-    control: MaybeUninit<Control>,
+pub struct State<'d, M: RawMutex> {
+    reset_signal: Signal<M, ()>,
+    control: MaybeUninit<Control<'d, M>>,
 }
 
-impl Default for State {
+impl<'d, M: RawMutex> Default for State<'d, M> {
     fn default() -> Self {
         Self {
+            reset_signal: Signal::new(),
             control: MaybeUninit::uninit(),
         }
     }
 }
 
-pub struct Control {
+pub struct Control<'d, M: RawMutex> {
+    reset_signal: &'d Signal<M, ()>,
     max_lun: u8,
 }
 
-impl embassy_usb::Handler for Control {
+impl<'d, M: RawMutex> embassy_usb::Handler for Control<'d, M> {
     fn control_in<'a>(&'a mut self, req: Request, buf: &'a mut [u8]) -> Option<InResponse<'a>> {
         // not interested in this request
         if !(req.request_type == RequestType::Class && req.recipient == Recipient::Interface) {
@@ -111,8 +116,10 @@ impl embassy_usb::Handler for Control {
 
         match req.request {
             // Spec. section 3.1
-            // TODO: what would reset mean in this context?
-            CLASS_SPECIFIC_BULK_ONLY_MASS_STORAGE_RESET => Some(InResponse::Rejected),
+            CLASS_SPECIFIC_BULK_ONLY_MASS_STORAGE_RESET => {
+                self.reset_signal.signal(());
+                Some(InResponse::Accepted(&[]))
+            }
             // Spec. section 3.2
             CLASS_SPECIFIC_GET_MAX_LUN => {
                 // always respond with LUN

@@ -10,10 +10,11 @@ use embassy_rp::{
     peripherals::USB,
     usb::{Driver, InterruptHandler},
 };
+use embassy_sync::blocking_mutex::raw::NoopRawMutex;
 use embassy_usb::{Builder, Config};
 use embedded_io_async::ReadExactError;
 use panic_probe as _;
-use pico_usb_mass_storage::{bulk_only_transport::CommandFailed, usb_mass_storage::UsbMassStorage};
+use pico_usb_mass_storage::{bulk_only_transport::CommandError, usb_mass_storage::UsbMassStorage};
 
 bind_interrupts!(struct Irqs {
     USBCTRL_IRQ => InterruptHandler<USB>;
@@ -77,7 +78,7 @@ async fn main(_spawner: Spawner) {
         &mut control_buf,
     );
 
-    let mut usb_mass_storage = UsbMassStorage::new(
+    let mut usb_mass_storage: UsbMassStorage<'_, _, NoopRawMutex> = UsbMassStorage::new(
         &mut usb_mass_storage_state,
         &mut builder,
         USB_PACKET_SIZE,
@@ -102,9 +103,9 @@ impl pico_usb_mass_storage::scsi::Handler for Handler {
         lba: u64,
         len: u64,
         writer: &mut impl embedded_io_async::Write<
-            Error = pico_usb_mass_storage::usb_mass_storage::Error,
+            Error = pico_usb_mass_storage::usb_mass_storage::TransportError,
         >,
-    ) -> Result<(), pico_usb_mass_storage::bulk_only_transport::CommandFailed> {
+    ) -> Result<(), CommandError> {
         let lba = lba as u32;
         let len = len as u32;
         let start = (BLOCK_SIZE * lba) as usize;
@@ -122,9 +123,9 @@ impl pico_usb_mass_storage::scsi::Handler for Handler {
         lba: u64,
         len: u64,
         reader: &mut impl embedded_io_async::Read<
-            Error = pico_usb_mass_storage::usb_mass_storage::Error,
+            Error = pico_usb_mass_storage::usb_mass_storage::TransportError,
         >,
-    ) -> Result<(), pico_usb_mass_storage::bulk_only_transport::CommandFailed> {
+    ) -> Result<(), CommandError> {
         info!("write lba: {}, len: {}", lba, len);
         let lba = lba as u32;
         let len = len as u32;
@@ -150,9 +151,9 @@ impl pico_usb_mass_storage::scsi::Handler for Handler {
         _page_code: u8,
         _alloc_len: u16,
         writer: &mut impl embedded_io_async::Write<
-            Error = pico_usb_mass_storage::usb_mass_storage::Error,
+            Error = pico_usb_mass_storage::usb_mass_storage::TransportError,
         >,
-    ) -> Result<(), pico_usb_mass_storage::bulk_only_transport::CommandFailed> {
+    ) -> Result<(), CommandError> {
         let data = [
             0x00, // periph qualifier, periph device type
             0x80, // Removable
@@ -171,9 +172,7 @@ impl pico_usb_mass_storage::scsi::Handler for Handler {
         Ok(())
     }
 
-    async fn test_unit_ready(
-        &mut self,
-    ) -> Result<(), pico_usb_mass_storage::bulk_only_transport::CommandFailed> {
+    async fn test_unit_ready(&mut self) -> Result<(), CommandError> {
         Ok(())
     }
 
@@ -182,9 +181,9 @@ impl pico_usb_mass_storage::scsi::Handler for Handler {
         _desc: bool,
         _alloc_len: u8,
         writer: &mut impl embedded_io_async::Write<
-            Error = pico_usb_mass_storage::usb_mass_storage::Error,
+            Error = pico_usb_mass_storage::usb_mass_storage::TransportError,
         >,
-    ) -> Result<(), pico_usb_mass_storage::bulk_only_transport::CommandFailed> {
+    ) -> Result<(), CommandError> {
         let data = [
             0x70, // RESPONSE CODE. Set to 70h for information on current errors
             0x00, // obsolete
@@ -218,9 +217,9 @@ impl pico_usb_mass_storage::scsi::Handler for Handler {
         _subpage_code: u8,
         _alloc_len: u8,
         writer: &mut impl embedded_io_async::Write<
-            Error = pico_usb_mass_storage::usb_mass_storage::Error,
+            Error = pico_usb_mass_storage::usb_mass_storage::TransportError,
         >,
-    ) -> Result<(), pico_usb_mass_storage::bulk_only_transport::CommandFailed> {
+    ) -> Result<(), CommandError> {
         let data = [
             0x03, // number of bytes that follow
             0x00, // the media type is SBC
@@ -239,9 +238,9 @@ impl pico_usb_mass_storage::scsi::Handler for Handler {
         _subpage_code: u8,
         _alloc_len: u16,
         writer: &mut impl embedded_io_async::Write<
-            Error = pico_usb_mass_storage::usb_mass_storage::Error,
+            Error = pico_usb_mass_storage::usb_mass_storage::TransportError,
         >,
-    ) -> Result<(), pico_usb_mass_storage::bulk_only_transport::CommandFailed> {
+    ) -> Result<(), CommandError> {
         let data = [0x00, 0x06, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00];
         writer.write_all(&data).await?;
         Ok(())
@@ -250,9 +249,9 @@ impl pico_usb_mass_storage::scsi::Handler for Handler {
     async fn read_capacity10(
         &mut self,
         writer: &mut impl embedded_io_async::Write<
-            Error = pico_usb_mass_storage::usb_mass_storage::Error,
+            Error = pico_usb_mass_storage::usb_mass_storage::TransportError,
         >,
-    ) -> Result<(), pico_usb_mass_storage::bulk_only_transport::CommandFailed> {
+    ) -> Result<(), CommandError> {
         let mut data = [0u8; 8];
         let _ = &mut data[0..4].copy_from_slice(&u32::to_be_bytes(BLOCKS - 1));
         let _ = &mut data[4..8].copy_from_slice(&u32::to_be_bytes(BLOCK_SIZE));
@@ -264,9 +263,9 @@ impl pico_usb_mass_storage::scsi::Handler for Handler {
         &mut self,
         _alloc_len: u32,
         writer: &mut impl embedded_io_async::Write<
-            Error = pico_usb_mass_storage::usb_mass_storage::Error,
+            Error = pico_usb_mass_storage::usb_mass_storage::TransportError,
         >,
-    ) -> Result<(), pico_usb_mass_storage::bulk_only_transport::CommandFailed> {
+    ) -> Result<(), CommandError> {
         let mut data = [0u8; 16];
         let _ = &mut data[0..8].copy_from_slice(&u32::to_be_bytes(BLOCKS - 1));
         let _ = &mut data[8..12].copy_from_slice(&u32::to_be_bytes(BLOCK_SIZE));
@@ -278,9 +277,9 @@ impl pico_usb_mass_storage::scsi::Handler for Handler {
         &mut self,
         _alloc_len: u16,
         writer: &mut impl embedded_io_async::Write<
-            Error = pico_usb_mass_storage::usb_mass_storage::Error,
+            Error = pico_usb_mass_storage::usb_mass_storage::TransportError,
         >,
-    ) -> Result<(), pico_usb_mass_storage::bulk_only_transport::CommandFailed> {
+    ) -> Result<(), CommandError> {
         let mut data = [0u8; 12];
         let _ = &mut data[0..4].copy_from_slice(&[
             0x00, 0x00, 0x00, 0x08, // capacity list length
@@ -296,15 +295,13 @@ impl pico_usb_mass_storage::scsi::Handler for Handler {
         Ok(())
     }
 
-    async fn unknown(
-        &mut self,
-    ) -> Result<(), pico_usb_mass_storage::bulk_only_transport::CommandFailed> {
+    async fn unknown(&mut self) -> Result<(), CommandError> {
         error!("Unknown SCSI command");
         unsafe {
             STATE.sense_key.replace(0x05); // illegal request Sense Key
             STATE.sense_key_code.replace(0x20); // Invalid command operation ASC
             STATE.sense_qualifier.replace(0x00); // Invalid command operation ASCQ
         }
-        Err(CommandFailed)
+        Err(CommandError::CommandFailed)
     }
 }

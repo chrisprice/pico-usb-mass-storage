@@ -1,23 +1,36 @@
+use embassy_futures::select::select;
+use embassy_futures::select::Either;
+use embassy_sync::blocking_mutex::raw::RawMutex;
+use embassy_sync::signal::Signal;
 use embassy_usb::driver::Driver;
 use embassy_usb::driver::EndpointError;
 use embassy_usb::driver::{Endpoint, EndpointIn, EndpointOut};
 use embedded_io_async::ErrorType;
 use embedded_io_async::Read;
 
-use super::Error;
+use super::TransportError;
 
-pub struct Endpoints<'d, D: Driver<'d>> {
+pub struct Endpoints<'d, D: Driver<'d>, M: RawMutex> {
     in_ep: D::EndpointIn,
     out_ep: D::EndpointOut,
+    reset_signal: &'d Signal<M, ()>,
 }
 
-impl<'d, D: Driver<'d>> Endpoints<'d, D> {
-    pub fn new(in_ep: D::EndpointIn, out_ep: D::EndpointOut) -> Self {
+impl<'d, D: Driver<'d>, M: RawMutex> Endpoints<'d, D, M> {
+    pub fn new(
+        in_ep: D::EndpointIn,
+        out_ep: D::EndpointOut,
+        reset_signal: &'d Signal<M, ()>,
+    ) -> Self {
         assert_eq!(
             in_ep.info().max_packet_size as usize,
             out_ep.info().max_packet_size as usize
         );
-        Self { in_ep, out_ep }
+        Self {
+            in_ep,
+            out_ep,
+            reset_signal,
+        }
     }
 
     pub fn packet_size(&self) -> usize {
@@ -25,37 +38,52 @@ impl<'d, D: Driver<'d>> Endpoints<'d, D> {
     }
 }
 
-impl From<EndpointError> for Error {
+impl From<EndpointError> for TransportError {
     fn from(e: EndpointError) -> Self {
-        Self::EndpointError(e)
+        Self::Endpoint(e)
     }
 }
 
-impl embedded_io_async::Error for Error {
+impl embedded_io_async::Error for TransportError {
     fn kind(&self) -> embedded_io_async::ErrorKind {
         match self {
-            Self::EndpointError(error) => match error {
+            Self::Endpoint(error) => match error {
                 EndpointError::BufferOverflow => embedded_io_async::ErrorKind::OutOfMemory,
                 EndpointError::Disabled => embedded_io_async::ErrorKind::NotConnected,
             },
+            Self::Reset() => embedded_io_async::ErrorKind::Other,
         }
     }
 }
 
-impl<'d, D: Driver<'d>> ErrorType for Endpoints<'d, D> {
-    type Error = Error;
+impl<'d, D: Driver<'d>, M: RawMutex> ErrorType for Endpoints<'d, D, M> {
+    type Error = TransportError;
 }
 
-impl<'d, D: Driver<'d>> Read for Endpoints<'d, D> {
+impl<'d, D: Driver<'d>, M: RawMutex> Read for Endpoints<'d, D, M> {
     async fn read(&mut self, buf: &mut [u8]) -> Result<usize, Self::Error> {
-        let count = self.out_ep.read(buf).await?;
-        Ok(count)
+        let read_future = self.out_ep.read(buf);
+        let reset_future = self.reset_signal.wait();
+        match select(read_future, reset_future).await {
+            Either::First(read_result) => match (read_result) {
+                Ok(count) => Ok(count),
+                Err(e) => Err(e.into()),
+            },
+            Either::Second(_) => Err(TransportError::Reset()),
+        }
     }
 }
 
-impl<'d, D: Driver<'d>> embedded_io_async::Write for Endpoints<'d, D> {
+impl<'d, D: Driver<'d>, M: RawMutex> embedded_io_async::Write for Endpoints<'d, D, M> {
     async fn write(&mut self, buf: &[u8]) -> Result<usize, Self::Error> {
-        self.in_ep.write(buf).await?;
-        Ok(buf.len())
+        let write_future = self.in_ep.write(buf);
+        let reset_future = self.reset_signal.wait();
+        match select(write_future, reset_future).await {
+            Either::First(write_result) => match write_result {
+                Ok(_) => Ok(buf.len()),
+                Err(e) => Err(e.into()),
+            },
+            Either::Second(_) => Err(TransportError::Reset()),
+        }
     }
 }
