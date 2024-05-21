@@ -1,6 +1,6 @@
 use core::future::Future;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, defmt::Format)]
 pub enum BlockDeviceError {
     /// Error during writing; most likely value read back after write was wrong
     WriteError,

@@ -1,6 +1,6 @@
 // There are many more variants (see asc-num.txt) but these are the ones the scsi code
 // currently uses
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, defmt::Format)]
 pub enum AdditionalSenseCode {
     /// ASC 0x20, ASCQ: 0x0 - INVALID COMMAND OPERATION CODE
     InvalidCommandOperationCode,
