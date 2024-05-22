@@ -32,7 +32,7 @@ pub struct InquiryResponse {
 
     ///The VERSION field indicates the implemented version of this standard and is defined in table 142
     #[pkd(7, 0, 2, 2)]
-    version: SpcVersion,
+    pub version: SpcVersion,
 
     ///The Normal ACA Supported (NORMACA) bit set to one indicates that the device server supports a NACA bit set to one in the CDB CONTROL byte and supports the ACA task attribute (see SAM-4). A N ORM ACA bit set to zero indicates that the device server does not support a NACA bit set to one and does not support the ACA task attribute.
     #[pkd(5, 5, 3, 3)]

@@ -64,7 +64,7 @@ impl<'d, B: Driver<'d>, BD: BlockDevice, M: RawMutex> Scsi<'d, B, BD, M> {
         inquiry_response.set_product_identification(product_identification);
         inquiry_response.set_product_revision_level(product_revision_level);
 
-        inquiry_response.set_version(SpcVersion::Spc2); // we are compliant (???)
+        inquiry_response.version = SpcVersion::Spc2; // we are compliant (???)
 
         //TODO: This is reasonable for FAT but not FAT32 or others. BOT buffer should probably be
         //configurable from here, perhaps passing in BD::BLOCK_BYTES.max(BOT::MIN_BUFFER) or something
