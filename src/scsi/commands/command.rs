@@ -10,23 +10,24 @@ use crate::scsi::{
 
 /// A fully parsed and validated SCSI command
 #[derive(Clone, Copy, Eq, PartialEq, Debug)]
+#[derive(defmt::Format)] // FIXME: don't use Debug2Format
 pub enum Command {
-    Inquiry(InquiryCommand),
-    TestUnitReady(TestUnitReadyCommand),
-    ReadCapacity(ReadCapacity10Command), // FIXME
-    ModeSense(ModeSenseXCommand),
-    PreventAllowMediumRemoval(PreventAllowMediumRemovalCommand),
-    RequestSense(RequestSenseCommand),
-    Read(ReadXCommand),
-    Write(WriteXCommand),
-    Format(FormatCommand),
-    SendDiagnostic(SendDiagnosticCommand),
-    ReportLuns(ReportLunsCommand),
-    ModeSelect(ModeSelectXCommand),
-    StartStopUnit(StartStopUnitCommand),
-    ReadFormatCapacities(ReadFormatCapacitiesCommand),
-    Verify(Verify10Command), // FIXME?
-    SynchronizeCache(SynchronizeCache10Command), // FIXME?
+    Inquiry(#[defmt(Debug2Format)] InquiryCommand),
+    TestUnitReady(#[defmt(Debug2Format)] TestUnitReadyCommand),
+    ReadCapacity(#[defmt(Debug2Format)] ReadCapacity10Command), // FIXME
+    ModeSense(#[defmt(Debug2Format)] ModeSenseXCommand),
+    PreventAllowMediumRemoval(#[defmt(Debug2Format)] PreventAllowMediumRemovalCommand),
+    RequestSense(#[defmt(Debug2Format)] RequestSenseCommand),
+    Read(#[defmt(Debug2Format)] ReadXCommand),
+    Write(#[defmt(Debug2Format)] WriteXCommand),
+    Format(#[defmt(Debug2Format)] FormatCommand),
+    SendDiagnostic(#[defmt(Debug2Format)] SendDiagnosticCommand),
+    ReportLuns(#[defmt(Debug2Format)] ReportLunsCommand),
+    ModeSelect(#[defmt(Debug2Format)] ModeSelectXCommand),
+    StartStopUnit(#[defmt(Debug2Format)] StartStopUnitCommand),
+    ReadFormatCapacities(#[defmt(Debug2Format)] ReadFormatCapacitiesCommand),
+    Verify(#[defmt(Debug2Format)] Verify10Command), // FIXME?
+    SynchronizeCache(#[defmt(Debug2Format)] SynchronizeCache10Command), // FIXME?
 }
 
 impl Command {
