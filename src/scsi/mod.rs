@@ -247,6 +247,17 @@ impl<'scsi, BD: BlockDevice> bulk_only_transport::Handler for BulkHandler<'scsi,
                 command_length: CommandLength::C6, // FIXME: handle other mode senses
                 page_control: PageControl::CurrentValues,
             })  => {
+                let data = [
+                    0x03, // number of bytes that follow
+                    0x00, // the media type is SBC
+                    0x00, // not write-protected, no cache-control bytes support
+                    0x00, // no mode-parameter block descriptors
+                ];
+                writer.write_all(&data).await?;
+                Ok(())
+
+                /*
+                 * FIXME
                 let mut header = ModeParameterHeader6::default();
                 header.increase_length_for_page(PageCode::CachingModePage);
 
@@ -260,6 +271,7 @@ impl<'scsi, BD: BlockDevice> bulk_only_transport::Handler for BulkHandler<'scsi,
                 // FIXME?: original modesense6 response only had 4 bytes, none of this cache_page
                 writer.write_all(&buf).await?;
                 Ok(())
+                */
             },
             Command::ModeSense(_) => todo!(),
             Command::ReadFormatCapacities(ReadFormatCapacitiesCommand {
