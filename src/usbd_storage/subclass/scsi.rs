@@ -19,11 +19,11 @@ use {
 /// SCSI device subclass code
 pub const SUBCLASS_SCSI: u8 = 0x06; // SCSI Transparent command set
 
+mod macros;
+
 /* SCSI codes */
 
 /* SPC */
-const TEST_UNIT_READY: u8 = 0x00;
-const REQUEST_SENSE: u8 = 0x03;
 const INQUIRY: u8 = 0x12;
 const MODE_SENSE_6: u8 = 0x1A;
 const MODE_SENSE_10: u8 = 0x5A;
@@ -41,16 +41,20 @@ const READ_FORMAT_CAPACITIES: u8 = 0x23;
 /// SCSI command
 ///
 /// Refer to specifications (SPC,SAM,SBC,MMC,etc.)
+///
+/// This is the Command Descriptor Block
 #[derive(Copy, Clone, Debug, Format)]
 pub enum ScsiCommand {
     Unknown,
 
-    /* SPC */
-    Inquiry {
-        evpd: bool,
-        page_code: u8,
-        alloc_len: u16,
-    },
+    /* SPC - SCSI Primary Commands (mandatory) */
+    Inquiry,
+    // {
+    // evpd: bool,
+    // page_code: u8,
+    // alloc_len: u16,
+    // }
+
     TestUnitReady,
     RequestSense {
         desc: bool,
@@ -71,7 +75,7 @@ pub enum ScsiCommand {
         alloc_len: u16,
     },
 
-    /* SBC */
+    /* SBC - SCSI Block Commands */
     ReadCapacity10,
     ReadCapacity16 {
         alloc_len: u32,
@@ -85,7 +89,7 @@ pub enum ScsiCommand {
         len: u64,
     },
 
-    /* MMC */
+    /* MMC - MultiMedia Commands */
     ReadFormatCapacities {
         alloc_len: u16,
     },
@@ -100,15 +104,35 @@ pub enum PageControl {
     SavedValues = 0b11,
 }
 
-#[allow(dead_code)]
+macros::scsi_command! {
+    struct Inquiry {
+        const OPCODE: u8 = 0x12;
+
+        evpd: u8 & 0b1,
+        page_code: u8,
+        alloc_len: u16 be,
+    }
+
+    struct RequestSense {
+        const OPCODE: u8 = 0x3;
+        desc: u8 & 0b1,
+        _: u8,
+        _: u8,
+        _: u8,
+        alloc_len: u8,
+    }
+}
+
+
+    // evpd = (cb[1] & 0b00000001) != 0;
+    // let page_code = cb[2];
+    //     alloc_len: u16::from_be_bytes([cb[3], cb[4]]),
+
 fn parse_cb(cb: &[u8]) -> ScsiCommand {
+
     match cb[0] {
-        TEST_UNIT_READY => ScsiCommand::TestUnitReady,
-        INQUIRY => ScsiCommand::Inquiry {
-            evpd: (cb[1] & 0b00000001) != 0,
-            page_code: cb[2],
-            alloc_len: u16::from_be_bytes([cb[3], cb[4]]),
-        },
+        TestUnitReady::OPCODE => ScsiCommand::TestUnitReady,
+        Inquiry::OPCODE => Inquiry::from(cb),
         REQUEST_SENSE => ScsiCommand::RequestSense {
             desc: (cb[1] & 0b00000001) != 0,
             alloc_len: cb[4],
@@ -268,4 +292,11 @@ pub trait CommandHandler<'d, D: Driver<'d>> {
         &'a mut self,
         cmd: Command<'a, ScsiCommand, Scsi<BulkOnly<'d, D>>>,
     ) -> impl Future<Output = ()>;
+}
+
+#[derive(Clone, Debug, Default)]
+struct ScsiSense {
+    sense_key: Option<u8>,
+    sense_key_code: Option<u8>,
+    sense_qualifier: Option<u8>,
 }

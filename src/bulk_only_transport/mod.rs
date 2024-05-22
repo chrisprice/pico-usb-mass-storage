@@ -21,7 +21,9 @@ pub struct CommandBlock<'a> {
 }
 
 pub enum CommandError {
+    // TODO: rename stutter
     CommandFailed,
+    CommandInvalid,
     TransportError(TransportError),
 }
 
@@ -71,7 +73,7 @@ impl<'d, D: Driver<'d>, M: RawMutex> BulkOnlyTransport<'d, D, M> {
                 bytes: &cbw.block[..cbw.block_len],
                 lun: cbw.lun,
             };
-            let result = match cbw.direction {
+            let response = match cbw.direction {
                 DataDirection::Out => {
                     handler
                         .data_transfer_from_host(&cb, &mut self.endpoints)
@@ -84,9 +86,9 @@ impl<'d, D: Driver<'d>, M: RawMutex> BulkOnlyTransport<'d, D, M> {
                 }
                 DataDirection::NotExpected => handler.no_data_transfer(&cb).await,
             };
-            let status = match result {
+            let status = match response {
                 Ok(()) => CommandStatus::Passed,
-                Err(CommandError::CommandFailed) => CommandStatus::Failed,
+                Err(CommandError::CommandFailed | CommandError::CommandInvalid) => CommandStatus::Failed,
                 Err(CommandError::TransportError(e)) => {
                     info!("Transport error processing command {}", e);
                     continue;

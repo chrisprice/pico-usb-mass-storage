@@ -13,7 +13,7 @@ use embassy_usb::driver::EndpointError;
 use embassy_usb::Builder;
 
 use crate::bulk_only_transport::CommandError;
-use crate::scsi::Handler;
+use crate::scsi::BlockDevice;
 use crate::scsi::Scsi;
 
 use self::endpoints::Endpoints;
@@ -40,16 +40,22 @@ impl From<TransportError> for CommandError {
     }
 }
 
-pub struct UsbMassStorage<'d, D: Driver<'d>, M: RawMutex> {
-    scsi: Scsi<'d, D, M>,
+pub struct UsbMassStorage<'d, D: Driver<'d>, BD: BlockDevice, M: RawMutex> {
+    scsi: Scsi<'d, D, BD, M>,
 }
 
-impl<'d, D: Driver<'d>, M: RawMutex> UsbMassStorage<'d, D, M> {
+impl<'d, D: Driver<'d>, BD: BlockDevice, M: RawMutex>
+    UsbMassStorage<'d, D, BD, M>
+{
     pub fn new(
         state: &'d mut State<'d, M>,
         builder: &mut Builder<'d, D>,
         packet_size: u16,
         max_lun: u8,
+        block_device: BD,
+        vendor_identification: impl AsRef<[u8]>,
+        product_identification: impl AsRef<[u8]>,
+        product_revision_level: impl AsRef<[u8]>,
     ) -> Self {
         let mut func = builder.function(
             CLASS_MASS_STORAGE,
@@ -76,13 +82,19 @@ impl<'d, D: Driver<'d>, M: RawMutex> UsbMassStorage<'d, D, M> {
         });
         builder.handler(control);
 
-        Self {
-            scsi: Scsi::new(endpoints),
-        }
+        let scsi = Scsi::new(
+            endpoints,
+            block_device,
+            vendor_identification,
+            product_identification,
+            product_revision_level
+        );
+
+        Self { scsi }
     }
 
-    pub async fn run(&mut self, handler: &mut impl Handler) {
-        self.scsi.run(handler).await
+    pub async fn run(&mut self) {
+        self.scsi.run().await
     }
 }
 
