@@ -87,7 +87,8 @@ impl<'d, D: Driver<'d>, BD: BlockDevice, M: RawMutex>
             block_device,
             vendor_identification,
             product_identification,
-            product_revision_level
+            product_revision_level,
+            packet_size,
         );
 
         Self { scsi }

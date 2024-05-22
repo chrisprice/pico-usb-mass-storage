@@ -32,6 +32,7 @@ pub struct Scsi<'d, B: Driver<'d>, BD: BlockDevice, M: RawMutex> {
     inquiry_response: InquiryResponse,
     request_sense_response: RequestSenseResponse,
     block_device: BD,
+    packet_size: u16,
 }
 
 impl<'d, B: Driver<'d>, BD: BlockDevice, M: RawMutex> Scsi<'d, B, BD, M> {
@@ -56,6 +57,7 @@ impl<'d, B: Driver<'d>, BD: BlockDevice, M: RawMutex> Scsi<'d, B, BD, M> {
         vendor_identification: impl AsRef<[u8]>,
         product_identification: impl AsRef<[u8]>,
         product_revision_level: impl AsRef<[u8]>,
+        packet_size: u16,
     ) -> Scsi<'d, B, BD, M> {
         let mut inquiry_response = InquiryResponse::default();
         inquiry_response.set_vendor_identification(vendor_identification);
@@ -74,6 +76,7 @@ impl<'d, B: Driver<'d>, BD: BlockDevice, M: RawMutex> Scsi<'d, B, BD, M> {
             inquiry_response,
             request_sense_response: Default::default(),
             block_device,
+            packet_size,
         }
     }
 
@@ -87,6 +90,7 @@ impl<'d, B: Driver<'d>, BD: BlockDevice, M: RawMutex> Scsi<'d, B, BD, M> {
             block_device: &mut self.block_device,
             inquiry_response: &self.inquiry_response,
             request_sense_response: &mut self.request_sense_response,
+            packet_size: self.packet_size,
         };
         self.transport.run(&mut handler).await;
     }
@@ -96,6 +100,7 @@ struct BulkHandler<'scsi, BD: BlockDevice> {
     block_device: &'scsi mut BD,
     inquiry_response: &'scsi InquiryResponse,
     request_sense_response: &'scsi mut RequestSenseResponse,
+    packet_size: u16,
 }
 
 impl<'scsi, BD: BlockDevice> bulk_only_transport::Handler for BulkHandler<'scsi, BD> {
@@ -195,21 +200,35 @@ impl<'scsi, BD: BlockDevice> bulk_only_transport::Handler for BulkHandler<'scsi,
             },
 
             Command::Read(ReadXCommand { lba: lba_start, transfer_length }) => {
-                // Record the end condition
+                // transfer_length == number of blocks to read
                 let lba_end = lba_start + transfer_length - 1;
 
                 // trace_scsi_fs!("FS> Read; new: {}, lba: 0x{:X?}, lba_end: 0x{:X?}, done: {}",
                 //     new_command, self.lba, self.lba_end, self.lba == self.lba_end);
 
-                for lba in lba_start..=lba_end {
-                    let mut buf = [0u8; 2048];
-                    assert!(buf.len() >= BD::BLOCK_BYTES); // TODO: almighty hack
-                    let buf = &mut buf[0..BD::BLOCK_BYTES];
+                // FIXME: what if block_size isn't a multiple of packet_size?
+                assert!(
+                    BD::BLOCK_BYTES % self.packet_size as usize == 0,
+                    "block device's block size must be a multiple of the (usb) packet size (for the current implementation)"
+                );
 
+                // FIXME: if lba+transfer_length*block_size is out-of-bounds:
+                // sense = IllegalRequest
+                // sense code = lba_out_of_range
+
+                let mut buf = [0u8; 2048];
+                assert!(buf.len() >= BD::BLOCK_BYTES); // TODO: almighty hack
+                let buf = &mut buf[0..BD::BLOCK_BYTES];
+
+                for lba in lba_start..=lba_end {
                     self.block_device.read_block(lba, buf)
                         .map_err(|_e| /*TODO: log e*/CommandError::CommandFailed)?;
 
-                    writer.write_all(buf).await?
+                    for offset in (0..buf.len()).step_by(self.packet_size as usize) {
+                        writer
+                            .write_all(&buf[offset..offset + self.packet_size as usize])
+                            .await?;
+                    }
                 }
 
                 Ok(())
