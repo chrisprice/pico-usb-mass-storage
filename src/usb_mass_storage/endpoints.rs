@@ -23,8 +23,8 @@ impl<'d, D: Driver<'d>, M: RawMutex> Endpoints<'d, D, M> {
         reset_signal: &'d Signal<M, ()>,
     ) -> Self {
         assert_eq!(
-            in_ep.info().max_packet_size as usize,
-            out_ep.info().max_packet_size as usize
+            in_ep.info().max_packet_size,
+            out_ep.info().max_packet_size
         );
         Self {
             in_ep,
@@ -65,7 +65,7 @@ impl<'d, D: Driver<'d>, M: RawMutex> Read for Endpoints<'d, D, M> {
         let read_future = self.out_ep.read(buf);
         let reset_future = self.reset_signal.wait();
         match select(read_future, reset_future).await {
-            Either::First(read_result) => match (read_result) {
+            Either::First(read_result) => match read_result {
                 Ok(count) => Ok(count),
                 Err(e) => Err(e.into()),
             },
