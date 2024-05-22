@@ -328,6 +328,7 @@ impl<'scsi, BD: BlockDevice> bulk_only_transport::Handler for BulkHandler<'scsi,
                 // sense response data with more info
                 Ok(())
             },
+            Command::StartStopUnit(StartStopUnitCommand { .. }) => Ok(()),
             _ => {
                 panic!("unexepected direction {:?}", command)
             }
