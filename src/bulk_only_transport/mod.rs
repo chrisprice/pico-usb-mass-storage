@@ -1,6 +1,6 @@
 use core::future::Future;
 
-use defmt::{info, warn};
+use defmt::warn;
 use embassy_sync::blocking_mutex::raw::RawMutex;
 use embassy_usb::driver::Driver;
 use embedded_io_async::{Read, ReadExactError, Write};

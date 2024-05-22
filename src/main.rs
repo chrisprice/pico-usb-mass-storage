@@ -1,7 +1,6 @@
 #![no_std]
 #![no_main]
 
-use defmt::info;
 use defmt_rtt as _;
 use embassy_executor::Spawner;
 use embassy_futures::join::join;
@@ -95,7 +94,6 @@ impl BlockDevice for InMemoryBlockDevice {
     // FIXME: async
     // FIXME: reader/writer instead of buffers
     fn read_block(&mut self, lba: u32, block: &mut [u8]) -> Result<(), BlockDeviceError> {
-        // info!("read lba: {}, len: {}", lba, block.len());
         assert_eq!(Self::BLOCK_BYTES, block.len());
 
         let start = (lba * BLOCK_SIZE) as usize;
@@ -106,7 +104,6 @@ impl BlockDevice for InMemoryBlockDevice {
     }
 
     fn write_block(&mut self, lba: u32, block: &[u8]) -> Result<(), BlockDeviceError> {
-        // info!("write lba: {}, len: {}", lba, block.len());
         assert_eq!(Self::BLOCK_BYTES, block.len());
 
         let start = (lba * BLOCK_SIZE) as usize;
