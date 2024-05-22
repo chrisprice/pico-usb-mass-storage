@@ -25,7 +25,6 @@ mod error;
 use error::Error;
 
 use self::{commands::Command, responses::{InquiryResponse, RequestSenseResponse}};
-pub mod command;
 
 pub struct Scsi<'d, B: Driver<'d>, BD: BlockDevice, M: RawMutex> {
     transport: BulkOnlyTransport<'d, B, M>,
