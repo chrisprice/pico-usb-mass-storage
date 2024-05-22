@@ -1,3 +1,4 @@
+use defmt::{info, error};
 use embassy_sync::blocking_mutex::raw::RawMutex;
 use embassy_usb::driver::Driver;
 use embedded_io_async::ReadExactError;
@@ -105,8 +106,10 @@ impl<'scsi, BD: BlockDevice> bulk_only_transport::Handler for BulkHandler<'scsi,
     ) -> Result<(), CommandError> {
         let command = Command::extract_from_cbw(cb).map_err(|_| {
             // TODO: better details / split apart the error type
+            error!("scsi (from-host) couldn't parse, first byte {}", cb.bytes[0]);
             CommandError::CommandInvalid
         })?;
+        info!("scsi from-host command: {}", command);
 
         match command {
             Command::Write(WriteXCommand { lba: lba_start, transfer_length }) => {
@@ -165,8 +168,10 @@ impl<'scsi, BD: BlockDevice> bulk_only_transport::Handler for BulkHandler<'scsi,
     ) -> Result<(), CommandError> {
         let command = Command::extract_from_cbw(cb).map_err(|_| {
             // TODO: better details / split apart the error type
+            error!("scsi (to-host) couldn't parse, first byte {}", cb.bytes[0]);
             CommandError::CommandInvalid
         })?;
+        info!("scsi to-host command: {}", command);
 
         match command {
             Command::ReadCapacity(_read_capacity10) => {
@@ -271,8 +276,10 @@ impl<'scsi, BD: BlockDevice> bulk_only_transport::Handler for BulkHandler<'scsi,
     async fn no_data_transfer(&mut self, cb: &CommandBlock<'_>) -> Result<(), CommandError> {
         let command = Command::extract_from_cbw(cb).map_err(|_| {
             // TODO: better details / split apart the error type
+            error!("scsi (no-data) couldn't parse, first byte {}", cb.bytes[0]);
             CommandError::CommandInvalid
         })?;
+        info!("scsi no-data command: {}", command);
 
         match command {
             Command::PreventAllowMediumRemoval(PreventAllowMediumRemovalCommand { prevent: _prevent, .. }) => {
