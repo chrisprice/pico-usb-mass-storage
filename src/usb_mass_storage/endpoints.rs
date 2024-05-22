@@ -80,10 +80,10 @@ impl<'d, D: Driver<'d>, M: RawMutex> embedded_io_async::Write for Endpoints<'d, 
         let reset_future = self.reset_signal.wait();
         match select(write_future, reset_future).await {
             Either::First(write_result) => match write_result {
-                Ok(_) => Ok(buf.len()),
+                Ok(()) => Ok(buf.len()),
                 Err(e) => Err(e.into()),
             },
-            Either::Second(_) => Err(TransportError::Reset()),
+            Either::Second(()) => Err(TransportError::Reset()),
         }
     }
 }
