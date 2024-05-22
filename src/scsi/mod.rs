@@ -234,26 +234,13 @@ impl<'scsi, BD: BlockDevice> bulk_only_transport::Handler for BulkHandler<'scsi,
                 Ok(())
             },
             Command::Inquiry { .. } => {
-                //let mut buf = [0u8; InquiryResponse::BYTES];
-                //self.inquiry_response.pack(&mut buf).unwrap();
-                //info!("sending inquiry response: {}", buf);
-                // FIXME - above is 70-odd bytes, we want this 36-byte one:
                 // FIXME - VPD page should specify maximum transfer_length for read/write
-                let data = [
-                    0x00, // periph qualifier, periph device type
-                    0x80, // Removable
-                    0x04, // SPC-2 compliance
-                    0x02, // NormACA, HiSu, Response data format
-                    0x20, // 36 bytes in total
-                    0x00, // additional fields, none set
-                    0x00, // additional fields, none set
-                    0x00, // additional fields, none set
-                    b'C', b'H', b'R', b'I', b'S', b'P', b' ', b' ', // 8-byte T-10 vendor id
-                    b'1', b'0', b'0', b'k', b' ', b'o', b'f', b' ', b'y', b'o', b'u', b'r', b' ', b'f',
-                    b'i', b'n', // 16-byte product identification
-                    b'1', b'.', b'2', b'3', // 4-byte product revision
-                ];
-                writer.write_all(&data/*buf*/).await?;
+                let mut buf = [0u8; InquiryResponse::BYTES];
+
+                self.inquiry_response.pack(&mut buf).unwrap();
+
+                writer.write_all(&buf[..InquiryResponse::MINIMUM_SIZE + self.inquiry_response.additional_length as usize]).await?;
+
                 Ok(())
             }
             Command::RequestSense(_) => {

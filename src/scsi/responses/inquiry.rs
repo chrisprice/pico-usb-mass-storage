@@ -49,7 +49,7 @@ pub struct InquiryResponse {
     ///The ADDITIONAL LENGTH field indicates the length in bytes of the remaining standard INQUIRY data. The relationship between the ADDITIONAL LENGTH field and the CDB ALLOCATION LENGTH field is defined in 4.3.5.6.
     ///Set to total length in bytes minus 4
     #[pkd(7, 0, 4, 4)]
-    additional_length: u8,
+    pub additional_length: u8,
 
     ///An SCC Supported ( SCCS ) bit set to one indicates that the SCSI target device contains an embedded storage array controller component that is addressable through this logical unit. See SCC-2 for details about storage array controller devices. An SCCS bit set to zero indicates that no embedded storage array controller component is addressable through this logical unit.
     #[pkd(7, 7, 5, 5)]
@@ -169,6 +169,8 @@ fn set_ascii_str<T: AsRef<[u8]>>(target: &mut [u8], value: T) {
 }
 
 impl InquiryResponse {
+    pub const MINIMUM_SIZE: usize = 36;
+
     pub fn set_vendor_identification<T: AsRef<[u8]>>(&mut self, vendor_id: T) {
         assert!(vendor_id.as_ref().len() <= self.vendor_identification.len());
         set_ascii_str(&mut self.vendor_identification, vendor_id);
@@ -181,19 +183,16 @@ impl InquiryResponse {
         assert!(product_revision_level.as_ref().len() <= self.product_revision_level.len());
         set_ascii_str(&mut self.product_revision_level, product_revision_level);
     }
-    pub fn set_version(&mut self, version: SpcVersion) {
-        self.version = version;
-    }
 }
 
 impl Default for InquiryResponse {
     fn default() -> Self {
         Self {
             removable_medium: true,
-            //TODO: Work out why off by 1, docs say -4 but that's one byte too long
+            //TODO(upstream): Work out why off by 1, docs say -4 but that's one byte too long
             //      It could be that sg_inq is adding 1 for some reason, the OS hasn't
             //      actually followed up with a longer request in real use.
-            additional_length: (InquiryResponse::BYTES - 4) as u8,
+            additional_length: 0, // we have no additional length, 36 bytes works fine
             vendor_identification: [ASCII_SPACE; 8],
             product_identification: [ASCII_SPACE; 16],
             product_revision_level: [ASCII_SPACE; 4],
