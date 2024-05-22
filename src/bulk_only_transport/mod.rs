@@ -1,6 +1,6 @@
 use core::future::Future;
 
-use defmt::info;
+use defmt::{info, warn};
 use embassy_sync::blocking_mutex::raw::RawMutex;
 use embassy_usb::driver::Driver;
 use embedded_io_async::{Read, ReadExactError, Write};
@@ -60,11 +60,11 @@ impl<'d, D: Driver<'d>, M: RawMutex> BulkOnlyTransport<'d, D, M> {
             match self.endpoints.read_exact(&mut buf).await {
                 Ok(_) => {}
                 Err(ReadExactError::Other(e)) => {
-                    info!("Transport error reading CBW {}", e);
+                    warn!("Transport error reading CBW {}", e);
                     continue;
                 }
                 Err(ReadExactError::UnexpectedEof) => {
-                    info!("Unexpected EOF reading CBW");
+                    warn!("Unexpected EOF reading CBW");
                     continue;
                 }
             };
@@ -90,7 +90,7 @@ impl<'d, D: Driver<'d>, M: RawMutex> BulkOnlyTransport<'d, D, M> {
                 Ok(()) => CommandStatus::Passed,
                 Err(CommandError::CommandFailed | CommandError::CommandInvalid) => CommandStatus::Failed,
                 Err(CommandError::TransportError(e)) => {
-                    info!("Transport error processing command {}", e);
+                    warn!("Transport error processing command: {}", e);
                     continue;
                 }
             };
@@ -98,7 +98,7 @@ impl<'d, D: Driver<'d>, M: RawMutex> BulkOnlyTransport<'d, D, M> {
             match self.endpoints.write_all(&buf).await {
                 Ok(_) => {}
                 Err(e) => {
-                    info!("Transport error writing CSW {}", e);
+                    warn!("Transport error writing CSW: {}", e);
                     continue;
                 }
             }
