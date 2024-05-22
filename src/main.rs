@@ -99,7 +99,7 @@ impl BlockDevice for InMemoryBlockDevice {
         assert_eq!(Self::BLOCK_BYTES, block.len());
 
         let start = (lba * BLOCK_SIZE) as usize;
-        let from = unsafe { &STORAGE[start..] };
+        let from = unsafe { &STORAGE[start..start + BLOCK_SIZE as usize] };
         block.copy_from_slice(from);
 
         Ok(())
@@ -111,7 +111,7 @@ impl BlockDevice for InMemoryBlockDevice {
 
         let start = (lba * BLOCK_SIZE) as usize;
         unsafe {
-            STORAGE[start..].copy_from_slice(block);
+            STORAGE[start..start + BLOCK_SIZE as usize].copy_from_slice(block);
         }
 
         Ok(())
