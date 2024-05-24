@@ -21,9 +21,8 @@ pub struct CommandBlock<'a> {
 }
 
 pub enum CommandError {
-    // TODO: rename stutter
-    CommandFailed,
-    CommandInvalid,
+    Failed,
+    Invalid,
     TransportError(TransportError),
 }
 
@@ -88,7 +87,7 @@ impl<'d, D: Driver<'d>, M: RawMutex> BulkOnlyTransport<'d, D, M> {
             };
             let status = match response {
                 Ok(()) => CommandStatus::Passed,
-                Err(CommandError::CommandFailed | CommandError::CommandInvalid) => CommandStatus::Failed,
+                Err(CommandError::Failed | CommandError::Invalid) => CommandStatus::Failed,
                 Err(CommandError::TransportError(e)) => {
                     warn!("Transport error processing command: {}", e);
                     continue;
