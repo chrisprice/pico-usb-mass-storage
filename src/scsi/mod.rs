@@ -65,11 +65,6 @@ impl<'d, 'bd, B: Driver<'d>, BD: BlockDevice, M: RawMutex> Scsi<'d, 'bd, B, BD, 
 
         inquiry_response.version = SpcVersion::Spc2; // we are compliant (???)
 
-        //TODO: This is reasonable for FAT but not FAT32 or others. BOT buffer should probably be
-        //configurable from here, perhaps passing in BD::BLOCK_BYTES.max(BOT::MIN_BUFFER) or something
-        //assert!(BD::BLOCK_BYTES <= BulkOnlyTransport::<B, M>::BUFFER_BYTES);
-        // FIXME
-
         Self {
             transport: BulkOnlyTransport::new(endpoints),
             inquiry_response,
