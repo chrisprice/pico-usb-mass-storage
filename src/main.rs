@@ -12,10 +12,12 @@ use embassy_rp::{
 use embassy_sync::blocking_mutex::raw::NoopRawMutex;
 use embassy_usb::{Builder, Config};
 use panic_probe as _;
-// FIXME: rename pico_usb_mass_storage to crate?
-use pico_usb_mass_storage::{
-    scsi::{BlockDevice, BlockDeviceError}, usb_mass_storage::UsbMassStorage
-};
+
+mod scsi;
+use scsi::{BlockDevice, BlockDeviceError};
+mod usb_mass_storage;
+use usb_mass_storage::UsbMassStorage;
+mod bulk_only_transport;
 
 bind_interrupts!(struct Irqs {
     USBCTRL_IRQ => InterruptHandler<USB>;
@@ -47,7 +49,7 @@ async fn main(_spawner: Spawner) {
     let mut mos_descriptor = [0; 0];
     let mut control_buf = [0; 64];
 
-    let mut usb_mass_storage_state = pico_usb_mass_storage::usb_mass_storage::State::default();
+    let mut usb_mass_storage_state = usb_mass_storage::State::default();
 
     let mut builder = Builder::new(
         driver,
