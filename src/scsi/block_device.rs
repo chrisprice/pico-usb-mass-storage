@@ -1,5 +1,6 @@
 use core::future::Future;
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, defmt::Format)]
 pub enum BlockDeviceError {
     /// Error during writing; most likely value read back after write was wrong
