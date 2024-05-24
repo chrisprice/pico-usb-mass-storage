@@ -83,8 +83,6 @@ async fn main(_spawner: Spawner) {
 
     let usb_mass_storage_fut = usb_mass_storage.run();
 
-    // Run everything concurrently.
-    // If we had made everything `'static` above instead, we could do this using separate tasks instead.
     join(usb_fut, usb_mass_storage_fut).await;
 }
 

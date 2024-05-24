@@ -32,10 +32,6 @@ impl<'d, D: Driver<'d>, M: RawMutex> Endpoints<'d, D, M> {
             reset_signal,
         }
     }
-
-    pub fn packet_size(&self) -> usize {
-        self.in_ep.info().max_packet_size as usize
-    }
 }
 
 impl From<EndpointError> for TransportError {

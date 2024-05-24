@@ -11,7 +11,7 @@ pub enum CommandStatus {
     #[default]
     Passed = 0x00,
     Failed = 0x01,
-    PhaseError = 0x02,
+    //PhaseError = 0x02,
 }
 
 pub fn build_csw(cbw: &CommandBlockWrapper, status: CommandStatus) -> [u8; CSW_LEN] {

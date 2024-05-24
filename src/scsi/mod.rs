@@ -79,11 +79,6 @@ impl<'d, B: Driver<'d>, BD: BlockDevice, M: RawMutex> Scsi<'d, B, BD, M> {
         }
     }
 
-    /// Grants access to the block device for the purposes of housekeeping etc.
-    pub fn block_device_mut(&mut self) -> &mut BD {
-        &mut self.block_device
-    }
-
     pub async fn run(&mut self) {
         let mut handler = BulkHandler {
             block_device: &mut self.block_device,
