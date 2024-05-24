@@ -139,21 +139,7 @@ impl<'scsi, BD: BlockDevice> bulk_only_transport::Handler for BulkHandler<'scsi,
 
                 Ok(())
             }
-            Command::Read { .. }
-            | Command::Inquiry { .. }
-            | Command::TestUnitReady(_)
-            | Command::RequestSense(_)
-            | Command::ModeSense(_)
-            | Command::ReadFormatCapacities { .. }
-            | Command::ReadCapacity(_)
-            | Command::PreventAllowMediumRemoval(_)
-            | Command::Format(_)
-            | Command::SendDiagnostic(_)
-            | Command::ReportLuns(_)
-            | Command::ModeSelect(_)
-            | Command::StartStopUnit(_)
-            | Command::Verify(_)
-            | Command::SynchronizeCache(_) => {
+            _ => {
                 error!("invalid from-host command");
                 self.set_sense_invalid_dir();
                 Err(CommandError::Invalid)
@@ -287,16 +273,7 @@ impl<'scsi, BD: BlockDevice> bulk_only_transport::Handler for BulkHandler<'scsi,
                 //data[11] = block_length_be[3];
                 todo!()
             }
-            Command::Format(_)
-            | Command::SendDiagnostic(_)
-            | Command::ReportLuns(_)
-            | Command::ModeSelect(_)
-            | Command::StartStopUnit(_)
-            | Command::Verify(_)
-            | Command::SynchronizeCache(_)
-            | Command::PreventAllowMediumRemoval(_)
-            | Command::TestUnitReady(_)
-            | Command::Write(_) => {
+            _ => {
                 error!("invalid to-host command");
                 self.set_sense_invalid_dir();
                 Err(CommandError::Invalid)
@@ -324,6 +301,14 @@ impl<'scsi, BD: BlockDevice> bulk_only_transport::Handler for BulkHandler<'scsi,
                 Ok(())
             },
             Command::StartStopUnit(StartStopUnitCommand { .. }) => Ok(()),
+            Command::Format(_)
+            | Command::ModeSelect(_)
+            | Command::ReportLuns(_)
+            | Command::SendDiagnostic(_)
+            | Command::SynchronizeCache(_)
+            | Command::Verify(_) => {
+                unimplemented!();
+            }
             _ => {
                 error!("invalid no-data command");
                 self.set_sense_invalid_dir();
