@@ -23,9 +23,11 @@ bind_interrupts!(struct Irqs {
     USBCTRL_IRQ => InterruptHandler<USB>;
 });
 
-static mut STORAGE: [u8; (BLOCKS * BLOCK_SIZE) as usize] = [0u8; (BLOCK_SIZE * BLOCKS) as usize];
+#[derive(Copy, Clone)]
+struct Block([u8; BLOCK_SIZE as usize]);
+static mut STORAGE: [Block; BLOCKS as usize] = [Block::new(); BLOCKS as usize];
 
-const BLOCK_SIZE: u32 = 512;
+const BLOCK_SIZE: usize = 512;
 const BLOCKS: u32 = 200;
 const USB_PACKET_SIZE: u16 = 64; // 8,16,32,64
 const MAX_LUN: u8 = 0; // max 0x0F
@@ -89,31 +91,34 @@ async fn main(_spawner: Spawner) {
 struct InMemoryBlockDevice;
 
 impl BlockDevice for InMemoryBlockDevice {
-    const BLOCK_BYTES: usize = BLOCK_SIZE as _;
+    const BLOCK_BYTES: usize = BLOCK_SIZE;
 
     // FIXME: reader/writer instead of buffers
-    async fn read_block(&mut self, lba: u32, block: &mut [u8]) -> Result<(), BlockDeviceError> {
-        assert_eq!(Self::BLOCK_BYTES, block.len());
+    async fn read_block(&mut self, lba: u32, output: &mut [u8]) -> Result<(), BlockDeviceError> {
+        assert_eq!(Self::BLOCK_BYTES, output.len());
 
-        let start = (lba * BLOCK_SIZE) as usize;
-        let from = unsafe { &STORAGE[start..start + BLOCK_SIZE as usize] };
-        block.copy_from_slice(from);
+        let block = unsafe { &STORAGE[lba as usize] };
+        output.copy_from_slice(&block.0);
 
         Ok(())
     }
 
-    async fn write_block(&mut self, lba: u32, block: &[u8]) -> Result<(), BlockDeviceError> {
-        assert_eq!(Self::BLOCK_BYTES, block.len());
+    async fn write_block(&mut self, lba: u32, input: &[u8]) -> Result<(), BlockDeviceError> {
+        assert_eq!(Self::BLOCK_BYTES, input.len());
 
-        let start = (lba * BLOCK_SIZE) as usize;
-        unsafe {
-            STORAGE[start..start + BLOCK_SIZE as usize].copy_from_slice(block);
-        }
+        let block = unsafe { &mut STORAGE[lba as usize] };
+        block.0.copy_from_slice(input);
 
         Ok(())
     }
 
     fn max_lba(&self) -> u32 {
         BLOCKS - 1
+    }
+}
+
+impl Block {
+    const fn new() -> Self {
+        Self([0; BLOCK_SIZE])
     }
 }
