@@ -14,7 +14,7 @@ use crate::scsi::{
 pub enum Command {
     Inquiry(#[defmt(Debug2Format)] InquiryCommand),
     TestUnitReady(#[defmt(Debug2Format)] TestUnitReadyCommand),
-    ReadCapacity(#[defmt(Debug2Format)] ReadCapacity10Command), // FIXME
+    ReadCapacity(#[defmt(Debug2Format)] ReadCapacity10Command), // FIXME: ReadCapacity16
     ModeSense(#[defmt(Debug2Format)] ModeSenseXCommand),
     PreventAllowMediumRemoval(#[defmt(Debug2Format)] PreventAllowMediumRemovalCommand),
     RequestSense(#[defmt(Debug2Format)] RequestSenseCommand),
@@ -26,8 +26,8 @@ pub enum Command {
     ModeSelect(#[defmt(Debug2Format)] ModeSelectXCommand),
     StartStopUnit(#[defmt(Debug2Format)] StartStopUnitCommand),
     ReadFormatCapacities(#[defmt(Debug2Format)] ReadFormatCapacitiesCommand),
-    Verify(#[defmt(Debug2Format)] Verify10Command), // FIXME?
-    SynchronizeCache(#[defmt(Debug2Format)] SynchronizeCache10Command), // FIXME?
+    Verify(#[defmt(Debug2Format)] Verify10Command), // FIXME: Verify16?
+    SynchronizeCache(#[defmt(Debug2Format)] SynchronizeCache10Command), // FIXME: SynchronizeCache16?
 }
 
 impl Command {

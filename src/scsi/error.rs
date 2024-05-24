@@ -23,16 +23,3 @@ impl From<BlockDeviceError> for Error {
         Error::BlockDeviceError(e)
     }
 }
-
-// TODO: delete?
-// impl From<BulkOnlyTransportError> for Error {
-//     fn from(e: BulkOnlyTransportError) -> Error {
-//         Error::BulkOnlyTransportError(e)
-//     }
-// }
-
-// impl From<UsbError> for Error {
-//     fn from(e: UsbError) -> Error {
-//         Error::BulkOnlyTransportError(e.into())
-//     }
-// }

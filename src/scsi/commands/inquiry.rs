@@ -48,7 +48,7 @@ impl ParsePackedStruct for InquiryCommand {}
 
 
 /*
-TODO
+TODO: tests
 #[test]
 fn test_inquiry() {
     let mut bytes = [0; 5];

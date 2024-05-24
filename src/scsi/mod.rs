@@ -107,11 +107,7 @@ impl<'scsi, BD: BlockDevice> bulk_only_transport::Handler for BulkHandler<'scsi,
 
         match command {
             Command::Write(WriteXCommand { lba: lba_start, transfer_length }) => {
-                // Record the end condition
                 let lba_end = lba_start + transfer_length - 1;
-
-                // trace_scsi_fs!("FS> Read; new: {}, lba: 0x{:X?}, lba_end: 0x{:X?}, done: {}",
-                //     new_command, self.lba, self.lba_end, self.lba == self.lba_end);
 
                 for lba in lba_start..=lba_end {
                     let mut buf = [0u8; 2048];
@@ -192,9 +188,6 @@ impl<'scsi, BD: BlockDevice> bulk_only_transport::Handler for BulkHandler<'scsi,
             Command::Read(ReadXCommand { lba: lba_start, transfer_length }) => {
                 // transfer_length == number of blocks to read
                 let lba_end = lba_start + transfer_length - 1;
-
-                // trace_scsi_fs!("FS> Read; new: {}, lba: 0x{:X?}, lba_end: 0x{:X?}, done: {}",
-                //     new_command, self.lba, self.lba_end, self.lba == self.lba_end);
 
                 // FIXME: what if block_size isn't a multiple of packet_size?
                 assert!(

@@ -123,7 +123,7 @@ impl From<Read12Command> for ReadXCommand {
 
 
 /*
-TODO
+TODO: tests
 #[test]
 fn test_read10_parse() {
     let data = [0, 0, 0, 0x1E, 0x80, 0, 0, 0x8, 0, 0, 0, 0, 0, 0, 0];
