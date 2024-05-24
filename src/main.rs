@@ -65,14 +65,14 @@ async fn main(_spawner: Spawner) {
     let product_id = b"100k of trunc";
     let product_revision = b"1.24";
 
-    let block_device = InMemoryBlockDevice;
+    let mut block_device = InMemoryBlockDevice;
 
-    let mut usb_mass_storage = UsbMassStorage::<'_, _, _, NoopRawMutex>::new(
+    let mut usb_mass_storage = UsbMassStorage::<'_, '_, _, _, NoopRawMutex>::new(
         &mut usb_mass_storage_state,
         &mut builder,
         USB_PACKET_SIZE,
         MAX_LUN,
-        block_device, // FIXME: &mut
+        &mut block_device,
         vendor_id,
         product_id,
         product_revision,

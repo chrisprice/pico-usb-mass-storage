@@ -26,15 +26,15 @@ use error::Error;
 
 use self::{commands::Command, responses::{InquiryResponse, RequestSenseResponse}};
 
-pub struct Scsi<'d, B: Driver<'d>, BD: BlockDevice, M: RawMutex> {
+pub struct Scsi<'d, 'bd, B: Driver<'d>, BD: BlockDevice, M: RawMutex> {
     transport: BulkOnlyTransport<'d, B, M>,
     inquiry_response: InquiryResponse,
     request_sense_response: RequestSenseResponse,
-    block_device: BD,
+    block_device: &'bd mut BD,
     packet_size: u16,
 }
 
-impl<'d, B: Driver<'d>, BD: BlockDevice, M: RawMutex> Scsi<'d, B, BD, M> {
+impl<'d, 'bd, B: Driver<'d>, BD: BlockDevice, M: RawMutex> Scsi<'d, 'bd, B, BD, M> {
     /// Creates a new Scsi block device
     ///
     /// `block_device` provides reading and writing of blocks to the underlying filesystem
@@ -52,12 +52,12 @@ impl<'d, B: Driver<'d>, BD: BlockDevice, M: RawMutex> Scsi<'d, B, BD, M> {
     ///      Panics if > 4 characters are supplied.
     pub fn new(
         endpoints: Endpoints<'d, B, M>,
-        block_device: BD,
+        block_device: &'bd mut BD,
         vendor_identification: impl AsRef<[u8]>,
         product_identification: impl AsRef<[u8]>,
         product_revision_level: impl AsRef<[u8]>,
         packet_size: u16,
-    ) -> Scsi<'d, B, BD, M> {
+    ) -> Scsi<'d, 'bd, B, BD, M> {
         let mut inquiry_response = InquiryResponse::default();
         inquiry_response.set_vendor_identification(vendor_identification);
         inquiry_response.set_product_identification(product_identification);
@@ -81,7 +81,7 @@ impl<'d, B: Driver<'d>, BD: BlockDevice, M: RawMutex> Scsi<'d, B, BD, M> {
 
     pub async fn run(&mut self) {
         let mut handler = BulkHandler {
-            block_device: &mut self.block_device,
+            block_device: self.block_device,
             inquiry_response: &self.inquiry_response,
             request_sense_response: &mut self.request_sense_response,
             packet_size: self.packet_size,

@@ -40,19 +40,19 @@ impl From<TransportError> for CommandError {
     }
 }
 
-pub struct UsbMassStorage<'d, D: Driver<'d>, BD: BlockDevice, M: RawMutex> {
-    scsi: Scsi<'d, D, BD, M>,
+pub struct UsbMassStorage<'d, 'bd, D: Driver<'d>, BD: BlockDevice, M: RawMutex> {
+    scsi: Scsi<'d, 'bd, D, BD, M>,
 }
 
-impl<'d, D: Driver<'d>, BD: BlockDevice, M: RawMutex>
-    UsbMassStorage<'d, D, BD, M>
+impl<'d, 'bd, D: Driver<'d>, BD: BlockDevice, M: RawMutex>
+    UsbMassStorage<'d, 'bd, D, BD, M>
 {
     pub fn new(
         state: &'d mut State<'d, M>,
         builder: &mut Builder<'d, D>,
         packet_size: u16,
         max_lun: u8,
-        block_device: BD,
+        block_device: &'bd mut BD,
         vendor_identification: impl AsRef<[u8]>,
         product_identification: impl AsRef<[u8]>,
         product_revision_level: impl AsRef<[u8]>,
