@@ -132,6 +132,7 @@ impl<'scsi, BD: BlockDevice> bulk_only_transport::Handler for BulkHandler<'scsi,
                         })?;
 
                     self.block_device.write_block(lba, buf)
+                        .await
                         .map_err(|_e| /*TODO: log e*/CommandError::CommandFailed)?;
                 }
 
@@ -216,6 +217,7 @@ impl<'scsi, BD: BlockDevice> bulk_only_transport::Handler for BulkHandler<'scsi,
 
                 for lba in lba_start..=lba_end {
                     self.block_device.read_block(lba, buf)
+                        .await
                         .map_err(|_e| /*TODO: log e*/CommandError::CommandFailed)?;
 
                     for offset in (0..buf.len()).step_by(self.packet_size as usize) {
