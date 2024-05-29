@@ -112,7 +112,7 @@ impl BlockDevice for InMemoryBlockDevice {
         Ok(())
     }
 
-    fn max_lba(&self) -> u32 {
+    fn block_count(&self) -> u32 {
         BLOCKS - 1
     }
 }

@@ -22,5 +22,5 @@ pub trait BlockDevice {
     fn write_block(&mut self, lba: u32, block: &[u8]) -> impl Future<Output = Result<(), BlockDeviceError>>;
 
     /// Get the maxium valid lba (logical block address)
-    fn max_lba(&self) -> u32;
+    fn block_count(&self) -> u32;
 }

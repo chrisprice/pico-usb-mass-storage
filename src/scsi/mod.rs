@@ -161,7 +161,7 @@ impl<'scsi, BD: BlockDevice> bulk_only_transport::Handler for BulkHandler<'scsi,
         match command {
             Command::ReadCapacity(_read_capacity10) => {
                 // TODO: support read_capacity16 etc
-                let max_lba = self.block_device.max_lba();
+                let max_lba = self.block_device.block_count();
                 let block_size = BD::BLOCK_BYTES as u32;
                 let cap = ReadCapacity10Response {
                     max_lba,
