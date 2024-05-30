@@ -1,27 +1,28 @@
 use crate::scsi::{commands::Control, packing::ParsePackedStruct};
+use overlay_macro::overlay;
 use packing::Packed;
 
-#[derive(Clone, Copy, Eq, PartialEq, Debug, Default, Packed)]
-#[packed(big_endian, lsb0)]
+#[overlay]
+#[derive(Clone, Copy, Eq, PartialEq, Default, Debug)]
 pub struct InquiryCommand {
-    #[pkd(7, 0, 0, 0)]
+    #[bit_byte(7, 0, 0, 0)]
     pub op_code: u8,
 
     /// If set, return vital data related to the page_code field
-    #[pkd(0, 0, 1, 1)]
+    #[bit_byte(0, 0, 1, 1)]
     pub enable_vital_product_data: bool,
 
     /// What kind of vital data to return
-    #[pkd(7, 0, 2, 2)]
+    #[bit_byte(7, 0, 2, 2)]
     pub page_code: u8,
 
     ///TODO: (check) Should match data_transfer_length in CBW
-    #[pkd(7, 0, 3, 4)]
+    #[bit_byte(7, 0, 3, 4)]
     pub allocation_length: u16,
-    #[pkd(7, 0, 5, 5)]
-    pub control: Control,
+
+    #[bit_byte(7, 0, 5, 5)]
+    pub control: u8, // TODO: `Control`
 }
-impl ParsePackedStruct for InquiryCommand {}
 
 /*
  if evpd

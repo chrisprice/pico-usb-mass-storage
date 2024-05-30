@@ -35,7 +35,8 @@ impl Command {
             OpCode::ReadFormatCapacities => {
                 Ok(Command::ReadFormatCapacities(checked_extract(cbw)?))
             }
-            OpCode::Inquiry => Ok(Command::Inquiry(checked_extract(cbw)?)),
+            // TODO: return &Command and avoid the copy here
+            OpCode::Inquiry => Ok(Command::Inquiry(*overlay(cbw)?)),
             OpCode::TestUnitReady => Ok(Command::TestUnitReady(checked_extract(cbw)?)),
             OpCode::ModeSense6 => Ok(Command::ModeSense(
                 checked_extract::<ModeSense6Command>(cbw)?.into(),
@@ -71,6 +72,12 @@ impl Command {
             _ => Err(Error::UnhandledOpCode),
         }
     }
+}
+
+fn overlay<'a, T: overlay::Overlay>(cbw: &'a CommandBlock) -> Result<&'a T, Error> {
+    T::overlay(&cbw.bytes).map_err(|e| match e {
+        overlay::Error::InsufficientLength => Error::InsufficientDataForCommand,
+    })
 }
 
 fn checked_extract<T>(cbw: &CommandBlock) -> Result<T, Error>
