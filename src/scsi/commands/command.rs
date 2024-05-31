@@ -28,9 +28,9 @@ impl Command {
     pub fn extract_from_cbw(cbw: &CommandBlock) -> Result<Command, Error> {
         let op_code = OpCode::from_primitive(cbw.bytes[0]).map_err(|_| Error::UnhandledOpCode)?;
         match op_code {
-            OpCode::Read6 => Ok(Command::Read(checked_extract::<Read6Command>(cbw)?.into())),
-            OpCode::Read10 => Ok(Command::Read(checked_extract::<Read10Command>(cbw)?.into())),
-            OpCode::Read12 => Ok(Command::Read(checked_extract::<Read12Command>(cbw)?.into())),
+            OpCode::Read6 => Ok(Command::Read((*overlay::<Read6Command>(cbw)?).into())),
+            OpCode::Read10 => Ok(Command::Read((*overlay::<Read10Command>(cbw)?).into())),
+            OpCode::Read12 => Ok(Command::Read((*overlay::<Read12Command>(cbw)?).into())),
             OpCode::ReadCapacity10 => Ok(Command::ReadCapacity(checked_extract(cbw)?)),
             OpCode::ReadFormatCapacities => {
                 Ok(Command::ReadFormatCapacities(checked_extract(cbw)?))
