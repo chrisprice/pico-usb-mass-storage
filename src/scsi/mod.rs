@@ -61,9 +61,9 @@ impl<'d, 'bd, B: Driver<'d>, BD: BlockDevice, M: RawMutex> Scsi<'d, 'bd, B, BD, 
     pub fn new(
         endpoints: Endpoints<'d, B, M>,
         block_device: &'bd mut BD,
-        vendor_identification: impl AsRef<[u8]>,
-        product_identification: impl AsRef<[u8]>,
-        product_revision_level: impl AsRef<[u8]>,
+        vendor_identification: &[u8; 8],
+        product_identification: &[u8; 16],
+        product_revision_level: &[u8; 4],
         packet_size: u16,
     ) -> Scsi<'d, 'bd, B, BD, M> {
         let mut inquiry_response = InquiryResponse::default();
@@ -71,7 +71,7 @@ impl<'d, 'bd, B: Driver<'d>, BD: BlockDevice, M: RawMutex> Scsi<'d, 'bd, B, BD, 
         inquiry_response.set_product_identification(product_identification);
         inquiry_response.set_product_revision_level(product_revision_level);
 
-        inquiry_response.version = SpcVersion::Spc2; // we are compliant (???)
+        inquiry_response.set_version(SpcVersion::Spc2 as u8); // we are compliant (???)
 
         Self {
             transport: BulkOnlyTransport::new(endpoints),
@@ -221,16 +221,9 @@ impl<'scsi, BD: BlockDevice> bulk_only_transport::Handler for BulkHandler<'scsi,
             }
             Command::Inquiry { .. } => {
                 // FIXME - VPD page should specify maximum transfer_length for read/write
-                let mut buf = [0u8; InquiryResponse::BYTES];
+                let buf = &self.inquiry_response.as_bytes()[..InquiryResponse::MINIMUM_SIZE];
 
-                self.inquiry_response.pack(&mut buf).unwrap();
-
-                writer
-                    .write_all(
-                        &buf[..InquiryResponse::MINIMUM_SIZE
-                            + self.inquiry_response.additional_length as usize],
-                    )
-                    .await?;
+                writer.write_all(buf).await?;
 
                 Ok(())
             }

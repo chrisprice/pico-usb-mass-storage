@@ -63,8 +63,8 @@ async fn main(_spawner: Spawner) {
         &mut control_buf,
     );
 
-    let vendor_id = b"CHRISP";
-    let product_id = b"100k of trunc";
+    let vendor_id = b"CHRISP  "; // per the spec, unused bytes should be a space
+    let product_id = b"100k of trunc   ";
     let product_revision = b"1.24";
 
     let mut block_device = InMemoryBlockDevice;
