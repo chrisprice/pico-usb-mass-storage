@@ -1,8 +1,6 @@
 #![no_std]
 #![no_main]
 
-use core::{any::Any, convert::Infallible, fmt::Display};
-
 use defmt::{error, info};
 use defmt_rtt as _;
 use embassy_executor::Spawner;

@@ -56,12 +56,10 @@ impl<'a> ByteReader<'a> {
         value
     }
     fn read4(&mut self) -> u32 {
-        let value = unsafe {
-            ((self.data[(self.position + 3) as usize] as u32) << 24)
+        let value = ((self.data[(self.position + 3) as usize] as u32) << 24)
                 + ((self.data[(self.position + 2) as usize] as u32) << 16)
                 + ((self.data[(self.position + 1) as usize] as u32) << 8)
-                + ((self.data[(self.position + 0) as usize] as u32) << 0)
-        };
+                + (self.data[self.position as usize] as u32);
         self.position += 4;
         value
     }
