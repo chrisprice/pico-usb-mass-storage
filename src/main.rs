@@ -5,22 +5,15 @@ use defmt::{error, info};
 use defmt_rtt as _;
 use embassy_executor::Spawner;
 use embassy_futures::join::join;
-use embassy_rp::{
-    bind_interrupts,
-    peripherals::USB,
-    usb::{Driver, InterruptHandler},
-};
+use embassy_rp::usb::Driver;
 use embassy_sync::blocking_mutex::raw::NoopRawMutex;
 use embassy_usb::{Builder, Config};
 use embedded_io_async::ReadExactError;
 use panic_probe as _;
 use pico_usb_mass_storage::{
-    bulk_only_transport::CommandError, fat12_partition, usb_mass_storage::UsbMassStorage,
+    blinky::Blinky, bulk_only_transport::CommandError, fat12_partition,
+    usb_mass_storage::UsbMassStorage, Irqs,
 };
-
-bind_interrupts!(struct Irqs {
-    USBCTRL_IRQ => InterruptHandler<USB>;
-});
 
 static mut STORAGE: [u8; (BLOCKS * BLOCK_SIZE) as usize] = [0u8; (BLOCK_SIZE * BLOCKS) as usize];
 
@@ -49,14 +42,25 @@ impl State {
 }
 
 #[embassy_executor::main]
-async fn main(_spawner: Spawner) {
+async fn main(spawner: Spawner) {
     unsafe {
         fat12_partition::init(&mut STORAGE, BLOCK_SIZE, BLOCKS);
     }
 
-    let p = embassy_rp::init(Default::default());
+    let posh = embassy_rp::init(Default::default());
+    let (usb, pin23, pin24, pin25, pin29, pio0, dma_ch0) = (
+        posh.USB,
+        posh.PIN_23,
+        posh.PIN_24,
+        posh.PIN_25,
+        posh.PIN_29,
+        posh.PIO0,
+        posh.DMA_CH0,
+    );
 
-    let driver = Driver::new(p.USB, Irqs);
+    let mut blinky = Blinky::build(pin23, pin24, pin25, pin29, pio0, dma_ch0, spawner).await;
+
+    let driver = Driver::new(usb, Irqs);
 
     let mut config = Config::new(0xabcd, 0xabcd);
     config.manufacturer = Some("Chris Price");
@@ -96,9 +100,10 @@ async fn main(_spawner: Spawner) {
 
     let usb_mass_storage_fut = usb_mass_storage.run(&mut scsi_handler);
 
+    let blinky_fut = blinky.run();
     // Run everything concurrently.
     // If we had made everything `'static` above instead, we could do this using separate tasks instead.
-    join(usb_fut, usb_mass_storage_fut).await;
+    join(join(usb_fut, usb_mass_storage_fut), blinky_fut).await;
 }
 
 struct Handler();
