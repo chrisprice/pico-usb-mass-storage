@@ -4,7 +4,7 @@
 use defmt::{error, info};
 use defmt_rtt as _;
 use embassy_executor::Spawner;
-use embassy_futures::join::join;
+use embassy_futures::join::{join, join_array};
 use embassy_rp::usb::Driver;
 use embassy_sync::blocking_mutex::raw::NoopRawMutex;
 use embassy_usb::{Builder, Config};
@@ -103,7 +103,7 @@ async fn main(spawner: Spawner) {
     let blinky_fut = blinky.run();
     // Run everything concurrently.
     // If we had made everything `'static` above instead, we could do this using separate tasks instead.
-    join(join(usb_fut, usb_mass_storage_fut), blinky_fut).await;
+    join_array([usb_fut, usb_mass_storage_fut, blinky_fut]).await;
 }
 
 struct Handler();
