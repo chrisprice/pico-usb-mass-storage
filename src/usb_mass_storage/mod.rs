@@ -81,7 +81,7 @@ impl<'d, D: Driver<'d>, M: RawMutex> UsbMassStorage<'d, D, M> {
         }
     }
 
-    pub async fn run(&mut self, handler: &mut impl Handler) {
+    pub async fn run(&mut self, handler: &mut impl Handler) -> ! {
         self.scsi.run(handler).await
     }
 }
