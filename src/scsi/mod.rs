@@ -85,9 +85,9 @@ impl<'d, D: Driver<'d>, M: RawMutex> Scsi<'d, D, M> {
         }
     }
 
-    pub async fn run(&mut self, handler: &mut impl Handler) {
+    pub async fn run(&mut self, handler: &mut impl Handler) -> ! {
         let mut adapter = Adapter { handler };
-        self.transport.run(&mut adapter).await;
+        self.transport.run(&mut adapter).await
     }
 }
 

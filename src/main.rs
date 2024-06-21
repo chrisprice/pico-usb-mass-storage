@@ -4,7 +4,7 @@
 use defmt::{error, info};
 use defmt_rtt as _;
 use embassy_executor::Spawner;
-use embassy_futures::join::join;
+use embassy_futures::join::join3;
 use embassy_rp::usb::Driver;
 use embassy_sync::blocking_mutex::raw::NoopRawMutex;
 use embassy_usb::{Builder, Config};
@@ -43,9 +43,7 @@ impl State {
 
 #[embassy_executor::main]
 async fn main(spawner: Spawner) {
-    unsafe {
-        fat12_partition::init(&mut STORAGE, BLOCK_SIZE, BLOCKS);
-    }
+    fat12_partition::init(unsafe { &mut STORAGE }, BLOCK_SIZE, BLOCKS);
 
     let posh = embassy_rp::init(Default::default());
     let (usb, pin23, pin24, pin25, pin29, pio0, dma_ch0) = (
@@ -103,7 +101,7 @@ async fn main(spawner: Spawner) {
     let blinky_fut = blinky.run();
     // Run everything concurrently.
     // If we had made everything `'static` above instead, we could do this using separate tasks instead.
-    join(join(usb_fut, usb_mass_storage_fut), blinky_fut).await;
+    join3(usb_fut, usb_mass_storage_fut, blinky_fut).await;
 }
 
 struct Handler();

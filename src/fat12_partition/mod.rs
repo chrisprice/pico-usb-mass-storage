@@ -56,10 +56,9 @@ impl<'a> ByteReader<'a> {
         value
     }
     fn read4(&mut self) -> u32 {
-        let value = ((self.data[(self.position + 3) as usize] as u32) << 24)
-            + ((self.data[(self.position + 2) as usize] as u32) << 16)
-            + ((self.data[(self.position + 1) as usize] as u32) << 8)
-            + (self.data[self.position as usize] as u32);
+        let position = self.position as usize;
+        let slice = &self.data[position..position + 4];
+        let value = u32::from_le_bytes(slice.try_into().unwrap());
         self.position += 4;
         value
     }
@@ -171,11 +170,8 @@ impl fatfs::Read for MemFS {
                 .unwrap(),
         );
 
-        unsafe {
-            let src = self.data[self.offset as usize..self.offset as usize + limit].as_ptr();
-            let dst = buf.as_mut_ptr();
-            core::ptr::copy(src, dst, limit)
-        };
+        buf[..limit]
+            .copy_from_slice(&self.data[self.offset as usize..self.offset as usize + limit]);
         self.offset += limit as u64;
         Ok(limit)
     }
@@ -189,10 +185,7 @@ impl fatfs::Write for MemFS {
                 .unwrap(),
         );
 
-        unsafe {
-            let dst = self.data[self.offset as usize..self.offset as usize + limit].as_mut_ptr();
-            core::ptr::copy(buf.as_ptr(), dst, limit)
-        };
+        self.data[self.offset as usize..self.offset as usize + limit].copy_from_slice(buf);
         self.offset += limit as u64;
         Ok(limit)
     }
