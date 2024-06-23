@@ -1,6 +1,7 @@
 // There are many more variants (see asc-num.txt) but these are the ones the scsi code
 // currently uses
 #[derive(Clone, Copy, Debug, PartialEq, Eq, defmt::Format)]
+#[derive(Default)]
 pub enum AdditionalSenseCode {
     /// ASC 0x20, ASCQ: 0x0 - INVALID COMMAND OPERATION CODE
     InvalidCommandOperationCode,
@@ -9,6 +10,7 @@ pub enum AdditionalSenseCode {
     /// ASC 0x24, ASCQ: 0x0 - INVALID FIELD IN CDB
     InvalidFieldInCdb,
     /// ASC 0x0, ASCQ: 0x0 - NO ADDITIONAL SENSE INFORMATION
+    #[default]
     NoAdditionalSenseInformation,
     /// ASC 0xC, ASCQ: 0x0 - WRITE ERROR
     WriteError,
@@ -76,8 +78,4 @@ impl packing::PackedBytes<[u8; 2]> for AdditionalSenseCode {
 }
 
 
-impl Default for AdditionalSenseCode {
-    fn default() -> Self {
-        AdditionalSenseCode::NoAdditionalSenseInformation
-    }
-}
+

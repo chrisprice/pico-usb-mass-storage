@@ -1,8 +1,10 @@
 use packing::Packed;
 
 #[derive(Clone, Copy, Eq, PartialEq, Debug, Packed, defmt::Format)]
+#[derive(Default)]
 pub enum SenseKey {
     /// Indicates that there is no specific sense key information to be reported. This may occur for a successful command or for a command that receives CHECK CONDITION status because one of the FILEMARK , EOM , or ILI bits is set to one.
+    #[default]
     NoSense =0x0,
     /// Indicates that the command completed successfully, with some recovery action performed by the device server. Details may be determined by examining the additional sense bytes and the INFORMATION field. When multiple recovered errors occur during one command, the choice of which error to report (e.g., first, last, most severe) is vendor specific.
     RecoveredError =0x1,
@@ -43,8 +45,4 @@ pub enum SenseKey {
     /// Indicates there is completion sense data to be reported. This may occur for a successful command.
     Completed =0xF,
 }
-impl Default for SenseKey {
-    fn default() -> Self {
-        SenseKey::NoSense
-    }
-}
+

@@ -71,5 +71,5 @@ where
     if cbw.bytes.len() < T::BYTES {
         Err(Error::InsufficientDataForCommand)?;
     }
-    Ok(T::parse(&cbw.bytes)?)
+    Ok(T::parse(cbw.bytes)?)
 }

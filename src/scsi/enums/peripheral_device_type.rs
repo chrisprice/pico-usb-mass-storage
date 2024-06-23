@@ -1,8 +1,10 @@
 use packing::Packed;
 
 #[derive(Clone, Copy, Eq, PartialEq, Debug, Packed)]
+#[derive(Default)]
 pub enum PeripheralDeviceType {
     /// Direct access block device (e.g., magnetic disk)
+    #[default]
     DirectAccessBlock = 0x00,
     /// Sequential-access device (e.g., magnetic tape)
     SequentialAccess = 0x01,
@@ -40,8 +42,4 @@ pub enum PeripheralDeviceType {
     UnknownOrNone = 0x1F,
 }
 
-impl Default for PeripheralDeviceType {
-    fn default() -> Self {
-        PeripheralDeviceType::DirectAccessBlock
-    }
-}
+

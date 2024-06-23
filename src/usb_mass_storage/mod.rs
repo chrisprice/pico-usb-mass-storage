@@ -44,9 +44,8 @@ pub struct UsbMassStorage<'d, 'bd, D: Driver<'d>, BD: BlockDevice, M: RawMutex> 
     scsi: Scsi<'d, 'bd, D, BD, M>,
 }
 
-impl<'d, 'bd, D: Driver<'d>, BD: BlockDevice, M: RawMutex>
-    UsbMassStorage<'d, 'bd, D, BD, M>
-{
+impl<'d, 'bd, D: Driver<'d>, BD: BlockDevice, M: RawMutex> UsbMassStorage<'d, 'bd, D, BD, M> {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         state: &'d mut State<'d, M>,
         builder: &mut Builder<'d, D>,

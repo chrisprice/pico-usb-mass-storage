@@ -31,7 +31,7 @@ impl ParsePackedStruct for Read6Command {}
 impl From<Read6Command> for ReadXCommand {
     fn from(r: Read6Command) -> Self {
         Self {
-            lba: r.lba.into(),
+            lba: r.lba,
             transfer_length: r.transfer_length.into(),
         }
     }
@@ -72,7 +72,7 @@ impl ParsePackedStruct for Read10Command {}
 impl From<Read10Command> for ReadXCommand {
     fn from(r: Read10Command) -> Self {
         Self {
-            lba: r.lba.into(),
+            lba: r.lba,
             transfer_length: r.transfer_length.into(),
         }
     }
@@ -113,8 +113,8 @@ impl ParsePackedStruct for Read12Command {}
 impl From<Read12Command> for ReadXCommand {
     fn from(r: Read12Command) -> Self {
         Self {
-            lba: r.lba.into(),
-            transfer_length: r.transfer_length.into(),
+            lba: r.lba,
+            transfer_length: r.transfer_length,
         }
     }
 }

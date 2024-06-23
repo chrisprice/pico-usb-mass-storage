@@ -1,7 +1,9 @@
 use packing::Packed;
 
 #[derive(Clone, Copy, Eq, PartialEq, Debug, Packed)]
+#[derive(Default)]
 pub enum VersionDescriptor {
+    #[default]
     None = 0x0000,
     /// SAM (no version claimed)
     SAMNoVersionClaimed = 0x0020,
@@ -963,9 +965,4 @@ pub enum VersionDescriptor {
     Ieee16672015 = 0xFFC3,
     /// IEEE 1667-2018
     Ieee16672018 = 0xFFC4,
-}
-impl Default for VersionDescriptor {
-    fn default() -> Self {
-        VersionDescriptor::None
-    }
 }

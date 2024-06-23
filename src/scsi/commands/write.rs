@@ -29,7 +29,7 @@ impl ParsePackedStruct for Write6Command {}
 impl From<Write6Command> for WriteXCommand {
     fn from(w: Write6Command) -> Self {
         Self {
-            lba: w.lba.into(),
+            lba: w.lba,
             transfer_length: w.transfer_length.into(),
         }
     }
@@ -69,7 +69,7 @@ impl ParsePackedStruct for Write10Command {}
 impl From<Write10Command> for WriteXCommand {
     fn from(w: Write10Command) -> Self {
         Self {
-            lba: w.lba.into(),
+            lba: w.lba,
             transfer_length: w.transfer_length.into(),
         }
     }
@@ -109,8 +109,8 @@ impl ParsePackedStruct for Write12Command {}
 impl From<Write12Command> for WriteXCommand {
     fn from(w: Write12Command) -> Self {
         Self {
-            lba: w.lba.into(),
-            transfer_length: w.transfer_length.into(),
+            lba: w.lba,
+            transfer_length: w.transfer_length,
         }
     }
 }

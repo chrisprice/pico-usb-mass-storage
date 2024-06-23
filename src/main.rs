@@ -24,7 +24,7 @@ bind_interrupts!(struct Irqs {
 });
 
 #[derive(Copy, Clone)]
-struct Block([u8; BLOCK_SIZE as usize]);
+struct Block([u8; BLOCK_SIZE]);
 static mut STORAGE: [Block; BLOCKS as usize] = [Block::new(); BLOCKS as usize];
 
 const BLOCK_SIZE: usize = 512;

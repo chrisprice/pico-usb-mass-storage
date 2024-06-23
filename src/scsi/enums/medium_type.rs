@@ -1,12 +1,9 @@
 use packing::Packed;
 
 #[derive(Clone, Copy, Eq, PartialEq, Debug, Packed)]
+#[derive(Default)]
 pub enum MediumType {
+    #[default]
     Sbc = 0x00,
 }
 
-impl Default for MediumType {
-    fn default() -> Self {
-        MediumType::Sbc
-    }
-}
