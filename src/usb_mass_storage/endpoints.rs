@@ -65,7 +65,7 @@ impl<'d, D: Driver<'d>, M: RawMutex> Read for Endpoints<'d, D, M> {
         let read_future = self.out_ep.read(buf);
         let reset_future = self.reset_signal.wait();
         match select(read_future, reset_future).await {
-            Either::First(read_result) => match (read_result) {
+            Either::First(read_result) => match read_result {
                 Ok(count) => Ok(count),
                 Err(e) => Err(e.into()),
             },
