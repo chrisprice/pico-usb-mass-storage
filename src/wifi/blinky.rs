@@ -3,9 +3,9 @@ use cyw43_pio::PioSpi;
 use defmt::{info, unwrap};
 use defmt_rtt as _;
 use embassy_executor::Spawner;
-use embassy_rp::pio::Pio;
+use embassy_rp::peripherals::{PIN_23, PIN_25};
 use embassy_rp::{
-    gpio::{Level, Output},
+    gpio::Output,
     peripherals::{DMA_CH0, PIO0},
 };
 use embassy_time::{Duration, Timer};
@@ -28,30 +28,12 @@ pub struct Blinky {
 }
 impl Blinky {
     pub async fn build(
-        pin23: embassy_rp::peripherals::PIN_23,
-        pin24: embassy_rp::peripherals::PIN_24,
-        pin25: embassy_rp::peripherals::PIN_25,
-        pin29: embassy_rp::peripherals::PIN_29,
-        pio0: embassy_rp::peripherals::PIO0,
-        dma_ch0: embassy_rp::peripherals::DMA_CH0,
+        fw: &[u8],
+        clm: &[u8],
+        pwr: Output<'static, PIN_23>,
+        spi: PioSpi<'static, PIN_25, PIO0, 0, DMA_CH0>,
         spawner: Spawner,
     ) -> Self {
-        let fw = include_bytes!("../../cyw43-firmware/43439A0.bin");
-        let clm = include_bytes!("../../cyw43-firmware/43439A0_clm.bin");
-
-        let pwr = Output::new(pin23, Level::Low);
-        let cs = Output::new(pin25, Level::High);
-        let mut pio = Pio::new(pio0, super::Irqs);
-        let spi = PioSpi::new(
-            &mut pio.common,
-            pio.sm0,
-            pio.irq0,
-            cs,
-            pin24,
-            pin29,
-            dma_ch0,
-        );
-
         static STATE: StaticCell<cyw43::State> = StaticCell::new();
         let state = STATE.init(cyw43::State::new());
         let (_net_device, mut control, runner) = cyw43::new(state, pwr, spi, fw).await;

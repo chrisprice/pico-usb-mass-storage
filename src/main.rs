@@ -1,18 +1,26 @@
 #![no_std]
 #![no_main]
 
+use cyw43_pio::PioSpi;
 use defmt::{error, info};
 use defmt_rtt as _;
 use embassy_executor::Spawner;
 use embassy_futures::join::join3;
-use embassy_rp::usb::Driver;
+use embassy_rp::{
+    gpio::{Level, Output},
+    pio::Pio,
+    usb::Driver,
+};
 use embassy_sync::blocking_mutex::raw::NoopRawMutex;
 use embassy_usb::{Builder, Config};
 use embedded_io_async::ReadExactError;
 use panic_probe as _;
 use pico_usb_mass_storage::{
-    blinky::Blinky, bulk_only_transport::CommandError, fat12_partition,
-    usb_mass_storage::UsbMassStorage, Irqs,
+    bulk_only_transport::CommandError,
+    fat12_partition,
+    usb_mass_storage::UsbMassStorage,
+    wifi::{self, blinky::Blinky},
+    Irqs,
 };
 
 static mut STORAGE: [u8; (BLOCKS * BLOCK_SIZE) as usize] = [0u8; (BLOCK_SIZE * BLOCKS) as usize];
@@ -45,20 +53,34 @@ impl State {
 async fn main(spawner: Spawner) {
     fat12_partition::init(unsafe { &mut STORAGE }, BLOCK_SIZE, BLOCKS);
 
-    let posh = embassy_rp::init(Default::default());
-    let (usb, pin23, pin24, pin25, pin29, pio0, dma_ch0) = (
-        posh.USB,
-        posh.PIN_23,
-        posh.PIN_24,
-        posh.PIN_25,
-        posh.PIN_29,
-        posh.PIO0,
-        posh.DMA_CH0,
+    let p = embassy_rp::init(Default::default());
+    let fw = include_bytes!("../cyw43-firmware/43439A0.bin");
+    let clm = include_bytes!("../cyw43-firmware/43439A0_clm.bin");
+
+    // To make flashing faster for development, you may want to flash the firmwares independently
+    // at hardcoded addresses, instead of baking them into the program with `include_bytes!`:
+    //     probe-rs download 43439A0.bin --format bin --chip RP2040 --base-address 0x10100000
+    //     probe-rs download 43439A0_clm.bin --format bin --chip RP2040 --base-address 0x10140000
+    //let fw = unsafe { core::slice::from_raw_parts(0x10100000 as *const u8, 230321) };
+    //let clm = unsafe { core::slice::from_raw_parts(0x10140000 as *const u8, 4752) };
+
+    let pwr = Output::new(p.PIN_23, Level::Low);
+    let cs = Output::new(p.PIN_25, Level::High);
+    let mut pio = Pio::new(p.PIO0, Irqs);
+    let spi = PioSpi::new(
+        &mut pio.common,
+        pio.sm0,
+        pio.irq0,
+        cs,
+        p.PIN_24,
+        p.PIN_29,
+        p.DMA_CH0,
     );
 
-    let mut blinky = Blinky::build(pin23, pin24, pin25, pin29, pio0, dma_ch0, spawner).await;
+    //let mut blinky = Blinky::build(fw, clm, pwr, spi, spawner).await;
+    let mut wifi = wifi::server::Server::build(fw, clm, pwr, spi, spawner).await;
 
-    let driver = Driver::new(usb, Irqs);
+    let driver = Driver::new(p.USB, Irqs);
 
     let mut config = Config::new(0xabcd, 0xabcd);
     config.manufacturer = Some("Chris Price");
@@ -98,10 +120,10 @@ async fn main(spawner: Spawner) {
 
     let usb_mass_storage_fut = usb_mass_storage.run(&mut scsi_handler);
 
-    let blinky_fut = blinky.run();
+    let wifi_fut = wifi.run();
     // Run everything concurrently.
     // If we had made everything `'static` above instead, we could do this using separate tasks instead.
-    join3(usb_fut, usb_mass_storage_fut, blinky_fut).await;
+    join3(usb_fut, usb_mass_storage_fut, wifi_fut).await;
 }
 
 struct Handler();
