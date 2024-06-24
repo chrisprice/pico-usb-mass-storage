@@ -93,7 +93,7 @@ impl<'d, 'bd, D: Driver<'d>, BD: BlockDevice, M: RawMutex> UsbMassStorage<'d, 'b
         Self { scsi }
     }
 
-    pub async fn run(&mut self) {
+    pub async fn run(&mut self) -> ! {
         self.scsi.run().await
     }
 }

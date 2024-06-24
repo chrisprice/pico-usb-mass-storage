@@ -82,14 +82,14 @@ impl<'d, 'bd, B: Driver<'d>, BD: BlockDevice, M: RawMutex> Scsi<'d, 'bd, B, BD, 
         }
     }
 
-    pub async fn run(&mut self) {
+    pub async fn run(&mut self) -> ! {
         let mut handler = BulkHandler {
             block_device: self.block_device,
             inquiry_response: &self.inquiry_response,
             request_sense_response: &mut self.request_sense_response,
             packet_size: self.packet_size,
         };
-        self.transport.run(&mut handler).await;
+        self.transport.run(&mut handler).await
     }
 }
 
