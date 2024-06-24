@@ -1,6 +1,6 @@
 use core::future::Future;
 
-use defmt::info;
+use defmt::warn;
 use embassy_sync::blocking_mutex::raw::RawMutex;
 use embassy_usb::driver::Driver;
 use embedded_io_async::{Read, ReadExactError, Write};
@@ -17,11 +17,13 @@ pub mod csw;
 
 pub struct CommandBlock<'a> {
     pub bytes: &'a [u8],
+    #[allow(dead_code)]
     pub lun: u8,
 }
 
 pub enum CommandError {
-    CommandFailed,
+    Failed,
+    Invalid,
     TransportError(TransportError),
 }
 
@@ -58,11 +60,11 @@ impl<'d, D: Driver<'d>, M: RawMutex> BulkOnlyTransport<'d, D, M> {
             match self.endpoints.read_exact(&mut buf).await {
                 Ok(_) => {}
                 Err(ReadExactError::Other(e)) => {
-                    info!("Transport error reading CBW {}", e);
+                    warn!("Transport error reading CBW {}", e);
                     continue;
                 }
                 Err(ReadExactError::UnexpectedEof) => {
-                    info!("Unexpected EOF reading CBW");
+                    warn!("Unexpected EOF reading CBW");
                     continue;
                 }
             };
@@ -71,7 +73,7 @@ impl<'d, D: Driver<'d>, M: RawMutex> BulkOnlyTransport<'d, D, M> {
                 bytes: &cbw.block[..cbw.block_len],
                 lun: cbw.lun,
             };
-            let result = match cbw.direction {
+            let response = match cbw.direction {
                 DataDirection::Out => {
                     handler
                         .data_transfer_from_host(&cb, &mut self.endpoints)
@@ -84,11 +86,11 @@ impl<'d, D: Driver<'d>, M: RawMutex> BulkOnlyTransport<'d, D, M> {
                 }
                 DataDirection::NotExpected => handler.no_data_transfer(&cb).await,
             };
-            let status = match result {
+            let status = match response {
                 Ok(()) => CommandStatus::Passed,
-                Err(CommandError::CommandFailed) => CommandStatus::Failed,
+                Err(CommandError::Failed | CommandError::Invalid) => CommandStatus::Failed,
                 Err(CommandError::TransportError(e)) => {
-                    info!("Transport error processing command {}", e);
+                    warn!("Transport error processing command: {}", e);
                     continue;
                 }
             };
@@ -96,7 +98,7 @@ impl<'d, D: Driver<'d>, M: RawMutex> BulkOnlyTransport<'d, D, M> {
             match self.endpoints.write_all(&buf).await {
                 Ok(_) => {}
                 Err(e) => {
-                    info!("Transport error writing CSW {}", e);
+                    warn!("Transport error writing CSW: {}", e);
                     continue;
                 }
             }

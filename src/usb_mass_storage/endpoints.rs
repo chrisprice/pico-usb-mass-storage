@@ -22,19 +22,12 @@ impl<'d, D: Driver<'d>, M: RawMutex> Endpoints<'d, D, M> {
         out_ep: D::EndpointOut,
         reset_signal: &'d Signal<M, ()>,
     ) -> Self {
-        assert_eq!(
-            in_ep.info().max_packet_size as usize,
-            out_ep.info().max_packet_size as usize
-        );
+        assert_eq!(in_ep.info().max_packet_size, out_ep.info().max_packet_size);
         Self {
             in_ep,
             out_ep,
             reset_signal,
         }
-    }
-
-    pub fn packet_size(&self) -> usize {
-        self.in_ep.info().max_packet_size as usize
     }
 }
 
@@ -80,10 +73,10 @@ impl<'d, D: Driver<'d>, M: RawMutex> embedded_io_async::Write for Endpoints<'d, 
         let reset_future = self.reset_signal.wait();
         match select(write_future, reset_future).await {
             Either::First(write_result) => match write_result {
-                Ok(_) => Ok(buf.len()),
+                Ok(()) => Ok(buf.len()),
                 Err(e) => Err(e.into()),
             },
-            Either::Second(_) => Err(TransportError::Reset()),
+            Either::Second(()) => Err(TransportError::Reset()),
         }
     }
 }
