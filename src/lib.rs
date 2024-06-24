@@ -5,10 +5,7 @@ use embassy_rp::{
     peripherals::{PIO0, USB},
 };
 
-pub mod bulk_only_transport;
-pub mod fat12_partition;
-pub mod scsi;
-pub mod usb_mass_storage;
+#[cfg(feature = "wifi")]
 pub mod wifi;
 
 bind_interrupts!(pub struct Irqs {

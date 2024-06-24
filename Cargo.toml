@@ -79,6 +79,7 @@ overflow-checks = true
 bbb = []
 scsi = []
 ufi = []
+wifi = []
 default = ["bbb", "scsi"]
 
 # cargo build/run --release
