@@ -2,6 +2,7 @@ use packing::Error as PackingError;
 
 use super::BlockDeviceError;
 
+#[allow(dead_code)]
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug)]
 pub enum Error {

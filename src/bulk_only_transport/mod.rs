@@ -17,6 +17,7 @@ pub mod csw;
 
 pub struct CommandBlock<'a> {
     pub bytes: &'a [u8],
+    #[allow(dead_code)]
     pub lun: u8,
 }
 
