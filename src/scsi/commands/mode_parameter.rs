@@ -1,8 +1,5 @@
-use packing::{
-    Packed,
-    PackedSize,
-};
 use crate::scsi::enums::MediumType;
+use packing::{Packed, PackedSize};
 
 #[derive(Clone, Copy, Eq, PartialEq, Debug, Packed)]
 #[packed(big_endian, lsb0)]
@@ -78,7 +75,6 @@ impl ModeParameterHeader10 {
         };
     }
 }
-
 
 #[derive(Clone, Copy, Eq, PartialEq, Debug, Packed, Default)]
 #[packed(big_endian, lsb0)]

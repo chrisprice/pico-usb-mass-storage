@@ -1,8 +1,5 @@
+use crate::scsi::{commands::Control, packing::ParsePackedStruct};
 use packing::Packed;
-use crate::scsi::{
-    packing::ParsePackedStruct,
-    commands::Control,
-};
 
 #[derive(Clone, Copy, Eq, PartialEq, Debug)]
 pub struct ModeSelectXCommand {
@@ -30,10 +27,9 @@ pub struct ModeSelect6Command {
 impl ParsePackedStruct for ModeSelect6Command {}
 impl From<ModeSelect6Command> for ModeSelectXCommand {
     fn from(_m: ModeSelect6Command) -> Self {
-        Self { }
+        Self {}
     }
 }
-
 
 #[derive(Clone, Copy, Eq, PartialEq, Debug, Packed)]
 #[packed(big_endian, lsb0)]
@@ -56,6 +52,6 @@ pub struct ModeSelect10Command {
 impl ParsePackedStruct for ModeSelect10Command {}
 impl From<ModeSelect10Command> for ModeSelectXCommand {
     fn from(_m: ModeSelect10Command) -> Self {
-        Self { }
+        Self {}
     }
 }

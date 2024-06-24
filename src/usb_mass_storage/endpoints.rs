@@ -22,10 +22,7 @@ impl<'d, D: Driver<'d>, M: RawMutex> Endpoints<'d, D, M> {
         out_ep: D::EndpointOut,
         reset_signal: &'d Signal<M, ()>,
     ) -> Self {
-        assert_eq!(
-            in_ep.info().max_packet_size,
-            out_ep.info().max_packet_size
-        );
+        assert_eq!(in_ep.info().max_packet_size, out_ep.info().max_packet_size);
         Self {
             in_ep,
             out_ep,

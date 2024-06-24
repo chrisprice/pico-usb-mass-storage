@@ -1,13 +1,9 @@
-use packing::Packed;
 use crate::scsi::{
-    packing::ParsePackedStruct,
-    commands::{
-        Control,
-        CommandLength,
-    },
+    commands::{CommandLength, Control},
     enums::PageControl,
+    packing::ParsePackedStruct,
 };
-
+use packing::Packed;
 
 /* After a logical unit reset, the device server shall respond in the following manner:
 a) if default values are requested, report the default values;
@@ -25,7 +21,7 @@ B) the default values.
 #[derive(Clone, Copy, Eq, PartialEq, Debug)]
 pub struct ModeSenseXCommand {
     pub command_length: CommandLength,
-    pub page_control: PageControl
+    pub page_control: PageControl,
 }
 
 #[derive(Clone, Copy, Eq, PartialEq, Debug, Packed)]

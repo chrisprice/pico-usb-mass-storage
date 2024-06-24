@@ -1,13 +1,6 @@
-use packing::{
-    Packed,
-    PackedSize,
-};
+use packing::{Packed, PackedSize};
 
-use crate::scsi::enums::{
-    ResponseCode,
-    SenseKey,
-    AdditionalSenseCode,
-};
+use crate::scsi::enums::{AdditionalSenseCode, ResponseCode, SenseKey};
 
 #[derive(Clone, Copy, Packed)]
 #[packed(big_endian, lsb0)]

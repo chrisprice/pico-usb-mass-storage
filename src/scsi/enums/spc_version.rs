@@ -1,7 +1,6 @@
 use packing::Packed;
 
-#[derive(Clone, Copy, Eq, PartialEq, Debug, Packed)]
-#[derive(Default)]
+#[derive(Clone, Copy, Eq, PartialEq, Debug, Packed, Default)]
 pub enum SpcVersion {
     //The device server does not claim conformance to any standard.
     None = 0x00,

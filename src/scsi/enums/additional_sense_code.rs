@@ -1,7 +1,6 @@
 // There are many more variants (see asc-num.txt) but these are the ones the scsi code
 // currently uses
-#[derive(Clone, Copy, Debug, PartialEq, Eq, defmt::Format)]
-#[derive(Default)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, defmt::Format, Default)]
 pub enum AdditionalSenseCode {
     /// ASC 0x20, ASCQ: 0x0 - INVALID COMMAND OPERATION CODE
     InvalidCommandOperationCode,
@@ -76,6 +75,3 @@ impl packing::PackedBytes<[u8; 2]> for AdditionalSenseCode {
         Self::from(asc, ascq).ok_or(packing::Error::InvalidEnumDiscriminant)
     }
 }
-
-
-

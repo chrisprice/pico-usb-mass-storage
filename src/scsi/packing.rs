@@ -1,4 +1,4 @@
-pub use packing::{Packed, Error};
+pub use packing::{Error, Packed};
 
 pub trait ParsePackedStruct: Packed
 where

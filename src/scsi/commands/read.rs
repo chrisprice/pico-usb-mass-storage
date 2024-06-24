@@ -1,15 +1,11 @@
+use crate::scsi::{commands::Control, packing::ParsePackedStruct};
 use packing::Packed;
-use crate::scsi::{
-    packing::ParsePackedStruct,
-    commands::Control,
-};
 
 #[derive(Clone, Copy, Eq, PartialEq, Debug)]
 pub struct ReadXCommand {
     pub lba: u32,
     pub transfer_length: u32,
 }
-
 
 #[derive(Clone, Copy, Eq, PartialEq, Debug, Packed)]
 #[packed(big_endian, lsb0)]
@@ -36,7 +32,6 @@ impl From<Read6Command> for ReadXCommand {
         }
     }
 }
-
 
 #[derive(Clone, Copy, Eq, PartialEq, Debug, Packed)]
 #[packed(big_endian, lsb0)]
@@ -78,7 +73,6 @@ impl From<Read10Command> for ReadXCommand {
     }
 }
 
-
 #[derive(Clone, Copy, Eq, PartialEq, Debug, Packed)]
 #[packed(big_endian, lsb0)]
 pub struct Read12Command {
@@ -118,9 +112,6 @@ impl From<Read12Command> for ReadXCommand {
         }
     }
 }
-
-
-
 
 /*
 TODO: tests

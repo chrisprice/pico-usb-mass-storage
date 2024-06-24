@@ -1,31 +1,38 @@
-use defmt::{info, error};
+use ::packing::PackedSize;
+use defmt::{error, info};
 use embassy_sync::blocking_mutex::raw::RawMutex;
 use embassy_usb::driver::Driver;
 use embedded_io_async::ReadExactError;
-use ::packing::PackedSize;
 
 use crate::{
     bulk_only_transport::{self, BulkOnlyTransport, CommandBlock, CommandError},
-    usb_mass_storage::{endpoints::Endpoints, TransportError},
     scsi::enums::{AdditionalSenseCode, SenseKey},
+    usb_mass_storage::{endpoints::Endpoints, TransportError},
 };
 
 use packing::Packed;
 
-use self::{commands::*, enums::{PageControl, SpcVersion}, responses::*};
+use self::{
+    commands::*,
+    enums::{PageControl, SpcVersion},
+    responses::*,
+};
 
 mod block_device;
 pub use block_device::*;
 
 mod commands;
-mod responses;
 mod enums;
 mod packing;
+mod responses;
 
 mod error;
 use error::Error;
 
-use self::{commands::Command, responses::{InquiryResponse, RequestSenseResponse}};
+use self::{
+    commands::Command,
+    responses::{InquiryResponse, RequestSenseResponse},
+};
 
 pub struct Scsi<'d, 'bd, B: Driver<'d>, BD: BlockDevice, M: RawMutex> {
     transport: BulkOnlyTransport<'d, B, M>,
@@ -107,7 +114,10 @@ impl<'scsi, BD: BlockDevice> bulk_only_transport::Handler for BulkHandler<'scsi,
         info!("scsi from-host command: {}", command);
 
         match command {
-            Command::Write(WriteXCommand { lba: lba_start, transfer_length }) => {
+            Command::Write(WriteXCommand {
+                lba: lba_start,
+                transfer_length,
+            }) => {
                 let lba_end = lba_start + transfer_length - 1;
 
                 for lba in lba_start..=lba_end {
@@ -115,26 +125,23 @@ impl<'scsi, BD: BlockDevice> bulk_only_transport::Handler for BulkHandler<'scsi,
                     assert!(buf.len() >= BD::BLOCK_BYTES); // TODO: almighty hack
                     let buf = &mut buf[0..BD::BLOCK_BYTES];
 
-                    reader.read_exact(buf).await
-                        .map_err(|e| match e {
-                            ReadExactError::UnexpectedEof => {
-                                error!("Unexpected EOF reading block to write to device");
-                                self.set_sense(
-                                    SenseKey::IllegalRequest,
-                                    AdditionalSenseCode::InvalidCommandOperationCode
-                                );
-                                CommandError::Failed
-                            }
-                            ReadExactError::Other(e) => CommandError::TransportError(e),
-                        })?;
-
-                    self.block_device.write_block(lba, buf)
-                        .await
-                        .map_err(|e| {
-                            error!("block device error: {}", e);
-                            self.set_sense_from_blockdev_error(e);
+                    reader.read_exact(buf).await.map_err(|e| match e {
+                        ReadExactError::UnexpectedEof => {
+                            error!("Unexpected EOF reading block to write to device");
+                            self.set_sense(
+                                SenseKey::IllegalRequest,
+                                AdditionalSenseCode::InvalidCommandOperationCode,
+                            );
                             CommandError::Failed
-                        })?;
+                        }
+                        ReadExactError::Other(e) => CommandError::TransportError(e),
+                    })?;
+
+                    self.block_device.write_block(lba, buf).await.map_err(|e| {
+                        error!("block device error: {}", e);
+                        self.set_sense_from_blockdev_error(e);
+                        CommandError::Failed
+                    })?;
                 }
 
                 Ok(())
@@ -177,9 +184,12 @@ impl<'scsi, BD: BlockDevice> bulk_only_transport::Handler for BulkHandler<'scsi,
                 //let mut data = [0u8; 16];
                 //let _ = &mut data[0..8].copy_from_slice(&u32::to_be_bytes(BLOCKS - 1));
                 //let _ = &mut data[8..12].copy_from_slice(&u32::to_be_bytes(BLOCK_SIZE));
-            },
+            }
 
-            Command::Read(ReadXCommand { lba: lba_start, transfer_length }) => {
+            Command::Read(ReadXCommand {
+                lba: lba_start,
+                transfer_length,
+            }) => {
                 // transfer_length == number of blocks to read
                 let lba_end = lba_start + transfer_length - 1;
 
@@ -194,13 +204,11 @@ impl<'scsi, BD: BlockDevice> bulk_only_transport::Handler for BulkHandler<'scsi,
                 let buf = &mut buf[0..BD::BLOCK_BYTES];
 
                 for lba in lba_start..=lba_end {
-                    self.block_device.read_block(lba, buf)
-                        .await
-                        .map_err(|e| {
-                            error!("block device error: {}", e);
-                            self.set_sense_from_blockdev_error(e);
-                            CommandError::Failed
-                        })?;
+                    self.block_device.read_block(lba, buf).await.map_err(|e| {
+                        error!("block device error: {}", e);
+                        self.set_sense_from_blockdev_error(e);
+                        CommandError::Failed
+                    })?;
 
                     for offset in (0..buf.len()).step_by(self.packet_size as usize) {
                         writer
@@ -210,14 +218,19 @@ impl<'scsi, BD: BlockDevice> bulk_only_transport::Handler for BulkHandler<'scsi,
                 }
 
                 Ok(())
-            },
+            }
             Command::Inquiry { .. } => {
                 // FIXME - VPD page should specify maximum transfer_length for read/write
                 let mut buf = [0u8; InquiryResponse::BYTES];
 
                 self.inquiry_response.pack(&mut buf).unwrap();
 
-                writer.write_all(&buf[..InquiryResponse::MINIMUM_SIZE + self.inquiry_response.additional_length as usize]).await?;
+                writer
+                    .write_all(
+                        &buf[..InquiryResponse::MINIMUM_SIZE
+                            + self.inquiry_response.additional_length as usize],
+                    )
+                    .await?;
 
                 Ok(())
             }
@@ -226,11 +239,11 @@ impl<'scsi, BD: BlockDevice> bulk_only_transport::Handler for BulkHandler<'scsi,
                 self.request_sense_response.pack(&mut buf).unwrap();
                 writer.write_all(&buf).await?;
                 Ok(())
-            },
+            }
             Command::ModeSense(ModeSenseXCommand {
                 command_length: CommandLength::C6, // FIXME: handle other mode senses
                 page_control: PageControl::CurrentValues,
-            })  => {
+            }) => {
                 let data = [
                     0x03, // number of bytes that follow
                     0x00, // the media type is SBC
@@ -256,11 +269,9 @@ impl<'scsi, BD: BlockDevice> bulk_only_transport::Handler for BulkHandler<'scsi,
                 writer.write_all(&buf).await?;
                 Ok(())
                 */
-            },
+            }
             Command::ModeSense(_) => todo!(),
-            Command::ReadFormatCapacities(ReadFormatCapacitiesCommand {
-                ..
-            }) => {
+            Command::ReadFormatCapacities(ReadFormatCapacitiesCommand { .. }) => {
                 //let mut data = [0u8; 12];
                 //let _ = &mut data[0..4].copy_from_slice(&[
                 //    0x00, 0x00, 0x00, 0x08, // capacity list length
@@ -289,7 +300,10 @@ impl<'scsi, BD: BlockDevice> bulk_only_transport::Handler for BulkHandler<'scsi,
         info!("scsi no-data command: {}", command);
 
         match command {
-            Command::PreventAllowMediumRemoval(PreventAllowMediumRemovalCommand { prevent: _prevent, .. }) => {
+            Command::PreventAllowMediumRemoval(PreventAllowMediumRemovalCommand {
+                prevent: _prevent,
+                ..
+            }) => {
                 // TODO: pass up a level?
                 Ok(())
             }
@@ -299,7 +313,7 @@ impl<'scsi, BD: BlockDevice> bulk_only_transport::Handler for BulkHandler<'scsi,
                 // request that indicates we should respond CommandError and prepare
                 // sense response data with more info
                 Ok(())
-            },
+            }
             Command::StartStopUnit(StartStopUnitCommand { .. }) => Ok(()),
             Command::Format(_)
             | Command::ModeSelect(_)
@@ -334,7 +348,7 @@ impl<BD> BulkHandler<'_, BD> {
                 Error::InsufficientDataForCommand => AdditionalSenseCode::InvalidPacketSize,
                 Error::PackingError(_) => AdditionalSenseCode::InvalidFieldInCdb,
                 Error::BlockDeviceError(_) => AdditionalSenseCode::WriteError,
-            }
+            },
         );
     }
 
@@ -358,7 +372,7 @@ impl<BD> BulkHandler<'_, BD> {
     fn set_sense_invalid_dir(&mut self) {
         self.set_sense(
             SenseKey::IllegalRequest,
-            AdditionalSenseCode::InvalidCommandOperationCode
+            AdditionalSenseCode::InvalidCommandOperationCode,
         );
     }
 }

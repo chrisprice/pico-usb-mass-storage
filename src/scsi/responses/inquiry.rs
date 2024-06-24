@@ -1,12 +1,8 @@
 use packing::Packed;
 
 use crate::scsi::enums::{
-    VersionDescriptor,
-    TargetPortGroupSupport,
-    SpcVersion,
-    PeripheralQualifier,
-    PeripheralDeviceType,
-    ResponseDataFormat,
+    PeripheralDeviceType, PeripheralQualifier, ResponseDataFormat, SpcVersion,
+    TargetPortGroupSupport, VersionDescriptor,
 };
 
 // ASCII space is used to pad shorter string identifiers as per SPC

@@ -16,10 +16,18 @@ pub trait BlockDevice {
     const BLOCK_BYTES: usize;
 
     /// Read the block indicated by `lba` into the provided buffer
-    fn read_block(&mut self, lba: u32, block: &mut [u8]) -> impl Future<Output = Result<(), BlockDeviceError>>;
+    fn read_block(
+        &mut self,
+        lba: u32,
+        block: &mut [u8],
+    ) -> impl Future<Output = Result<(), BlockDeviceError>>;
 
     /// Write the `block` buffer to the block indicated by `lba`
-    fn write_block(&mut self, lba: u32, block: &[u8]) -> impl Future<Output = Result<(), BlockDeviceError>>;
+    fn write_block(
+        &mut self,
+        lba: u32,
+        block: &[u8],
+    ) -> impl Future<Output = Result<(), BlockDeviceError>>;
 
     /// Get the maxium valid lba (logical block address)
     fn block_count(&self) -> u32;

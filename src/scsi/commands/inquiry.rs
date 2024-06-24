@@ -1,10 +1,5 @@
+use crate::scsi::{commands::Control, packing::ParsePackedStruct};
 use packing::Packed;
-use crate::scsi::{
-    packing::ParsePackedStruct,
-    commands::Control,
-};
-
-
 
 #[derive(Clone, Copy, Eq, PartialEq, Debug, Default, Packed)]
 #[packed(big_endian, lsb0)]
@@ -28,8 +23,6 @@ pub struct InquiryCommand {
 }
 impl ParsePackedStruct for InquiryCommand {}
 
-
-
 /*
  if evpd
     return data related to page_code (spc-4 section 7.8)
@@ -45,7 +38,6 @@ impl ParsePackedStruct for InquiryCommand {}
             key: ILLEGAL_REQUEST
             additional code: INVALID_FIELD_IN_CBD
 */
-
 
 /*
 TODO: tests

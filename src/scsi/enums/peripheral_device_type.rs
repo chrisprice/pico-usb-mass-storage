@@ -1,7 +1,6 @@
 use packing::Packed;
 
-#[derive(Clone, Copy, Eq, PartialEq, Debug, Packed)]
-#[derive(Default)]
+#[derive(Clone, Copy, Eq, PartialEq, Debug, Packed, Default)]
 pub enum PeripheralDeviceType {
     /// Direct access block device (e.g., magnetic disk)
     #[default]
@@ -41,5 +40,3 @@ pub enum PeripheralDeviceType {
     /// Unknown or no device type
     UnknownOrNone = 0x1F,
 }
-
-

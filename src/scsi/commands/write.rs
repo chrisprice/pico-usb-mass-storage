@@ -1,8 +1,5 @@
+use crate::scsi::{commands::Control, packing::ParsePackedStruct};
 use packing::Packed;
-use crate::scsi::{
-    packing::ParsePackedStruct,
-    commands::Control,
-};
 
 #[derive(Clone, Copy, Eq, PartialEq, Debug)]
 pub struct WriteXCommand {
