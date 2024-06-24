@@ -28,14 +28,15 @@ impl Command {
     pub fn extract_from_cbw(cbw: &CommandBlock) -> Result<Command, Error> {
         let op_code = OpCode::from_primitive(cbw.bytes[0]).map_err(|_| Error::UnhandledOpCode)?;
         match op_code {
-            OpCode::Read6 => Ok(Command::Read(checked_extract::<Read6Command>(cbw)?.into())),
-            OpCode::Read10 => Ok(Command::Read(checked_extract::<Read10Command>(cbw)?.into())),
-            OpCode::Read12 => Ok(Command::Read(checked_extract::<Read12Command>(cbw)?.into())),
+            OpCode::Read6 => Ok(Command::Read((*overlay::<Read6Command>(cbw)?).into())),
+            OpCode::Read10 => Ok(Command::Read((*overlay::<Read10Command>(cbw)?).into())),
+            OpCode::Read12 => Ok(Command::Read((*overlay::<Read12Command>(cbw)?).into())),
             OpCode::ReadCapacity10 => Ok(Command::ReadCapacity(checked_extract(cbw)?)),
             OpCode::ReadFormatCapacities => {
                 Ok(Command::ReadFormatCapacities(checked_extract(cbw)?))
             }
-            OpCode::Inquiry => Ok(Command::Inquiry(checked_extract(cbw)?)),
+            // TODO: return &Command and avoid the copy here
+            OpCode::Inquiry => Ok(Command::Inquiry(*overlay(cbw)?)),
             OpCode::TestUnitReady => Ok(Command::TestUnitReady(checked_extract(cbw)?)),
             OpCode::ModeSense6 => Ok(Command::ModeSense(
                 checked_extract::<ModeSense6Command>(cbw)?.into(),
@@ -71,6 +72,12 @@ impl Command {
             _ => Err(Error::UnhandledOpCode),
         }
     }
+}
+
+fn overlay<'a, T: overlay::Overlay>(cbw: &'a CommandBlock) -> Result<&'a T, Error> {
+    T::overlay(cbw.bytes).map_err(|e| match e {
+        overlay::Error::InsufficientLength => Error::InsufficientDataForCommand,
+    })
 }
 
 fn checked_extract<T>(cbw: &CommandBlock) -> Result<T, Error>
