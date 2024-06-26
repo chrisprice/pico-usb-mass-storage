@@ -36,7 +36,7 @@ impl CommandBlockWrapper {
             return Err(Error::InvalidSignature);
         }
 
-        let block_len = value[10] as usize;
+        let block_len = value[4 + 10] as usize;
 
         if !(MIN_CB_LEN..=MAX_CB_LEN).contains(&block_len) {
             return Err(Error::InvalidLength);
@@ -45,7 +45,7 @@ impl CommandBlockWrapper {
         Ok(CommandBlockWrapper {
             tag: u32::from_le_bytes(value[4..8].try_into().unwrap()),
             data_transfer_len: u32::from_le_bytes(value[8..12].try_into().unwrap()),
-            direction: if u32::from_le_bytes(value[4..8].try_into().unwrap()) != 0 {
+            direction: if u32::from_le_bytes(value[8..12].try_into().unwrap()) != 0 {
                 if (value[12] & (1 << 7)) > 0 {
                     DataDirection::In
                 } else {
