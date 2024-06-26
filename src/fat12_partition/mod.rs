@@ -84,7 +84,7 @@ pub fn read_partition(data: &[u8], index: u8) -> Partition {
     }
 }
 
-pub fn log_fs(data: &'static mut [u8], blocks: u64, block_size: u64) {
+pub fn log_fs(data: &mut [u8], blocks: u64, block_size: u64) {
     let partition = read_partition(data, 0);
     info!("partition {}: {}", 0, partition);
 
@@ -142,14 +142,14 @@ pub fn log_fs(data: &'static mut [u8], blocks: u64, block_size: u64) {
     }
 }
 
-struct MemFS {
+struct MemFS<'d> {
     blocks: u64,
     block_size: u64,
-    data: &'static mut [u8],
+    data: &'d mut [u8],
     offset: u64,
 }
-impl MemFS {
-    fn new(data: &'static mut [u8], blocks: u64, block_size: u64) -> Self {
+impl<'d> MemFS<'d> {
+    fn new(data: &'d mut [u8], blocks: u64, block_size: u64) -> Self {
         Self {
             data,
             blocks,
@@ -158,10 +158,10 @@ impl MemFS {
         }
     }
 }
-impl fatfs::IoBase for MemFS {
+impl fatfs::IoBase for MemFS<'_> {
     type Error = MemFSError;
 }
-impl fatfs::Read for MemFS {
+impl fatfs::Read for MemFS<'_> {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize, Self::Error> {
         let limit = usize::min(
             buf.len(),
@@ -176,7 +176,7 @@ impl fatfs::Read for MemFS {
         Ok(limit)
     }
 }
-impl fatfs::Write for MemFS {
+impl fatfs::Write for MemFS<'_> {
     fn write(&mut self, buf: &[u8]) -> Result<usize, Self::Error> {
         let limit = usize::min(
             buf.len(),
@@ -194,7 +194,7 @@ impl fatfs::Write for MemFS {
         unimplemented!()
     }
 }
-impl fatfs::Seek for MemFS {
+impl fatfs::Seek for MemFS<'_> {
     fn seek(&mut self, pos: fatfs::SeekFrom) -> Result<u64, Self::Error> {
         match pos {
             fatfs::SeekFrom::Start(p) => self.offset = p,

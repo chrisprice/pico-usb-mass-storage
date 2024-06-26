@@ -1,9 +1,9 @@
-use crate::Block;
+use crate::storage::{self, Block};
 
 static FS_DUMP: &[u8; 102400] = include_bytes!("../../dumps/linux_partitioned.dump");
 
 pub fn init(storage: &mut [Block]) {
-    assert!(storage.len() * crate::BLOCK_SIZE >= FS_DUMP.len());
+    assert!(storage.len() * storage::BLOCK_SIZE >= FS_DUMP.len());
 
     // FIXME: need to update the slice length
     let raw = storage as *mut _ as *mut [u8];
