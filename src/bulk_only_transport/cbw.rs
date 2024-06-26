@@ -31,7 +31,6 @@ pub enum Error {
 }
 
 impl CommandBlockWrapper {
-    #[allow(clippy::result_unit_err)]
     pub fn from_le_bytes(value: &[u8]) -> Result<Self, Error> {
         if !value.starts_with(&CBW_SIGNATURE_LE) {
             return Err(Error::InvalidSignature);
