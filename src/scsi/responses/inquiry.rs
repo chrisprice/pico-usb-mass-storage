@@ -128,28 +128,28 @@ pub struct InquiryResponse {
 
     ///The VERSION DESCRIPTOR fields provide for identifying up to eight standards to which the SCSI target device and/or logical unit claim conformance. The value in each VERSION DESCRIPTOR field shall be selected from table 144. All version descriptor values not listed in table 144 are reserved. Technical Committee T10 of INCITS maintains an electronic copy of the information in table 144 on its world wide web site (http://www.t10.org/). In the event that the T10 world wide web site is no longer active, access may be possible via the INCITS world wide web site (http://www.incits.org), the ANSI world wide web site (http://www.ansi.org), the IEC site (http://www.iec.ch/), the ISO site (http://www.iso.ch/), or the ISO/IEC JTC 1 web site (http://www.jtc1.org/). It is recommended that the first version descriptor be used for the SCSI architecture standard, followed by the physical transport standard if any, followed by the SCSI transport protocol standard, followed by the appropriate SPC-x version, followed by the device type command set, followed by a secondary command set if any.
     #[bit_byte(7, 0, 58, 59)]
-    compliant_standard_1: u8, //VersionDescriptor,
+    compliant_standard_1: u16, //VersionDescriptor,
 
     #[bit_byte(7, 0, 60, 61)]
-    compliant_standard_2: u8, //VersionDescriptor,
+    compliant_standard_2: u16, //VersionDescriptor,
 
     #[bit_byte(7, 0, 62, 63)]
-    compliant_standard_3: u8, //VersionDescriptor,
+    compliant_standard_3: u16, //VersionDescriptor,
 
     #[bit_byte(7, 0, 64, 65)]
-    compliant_standard_4: u8, //VersionDescriptor,
+    compliant_standard_4: u16, //VersionDescriptor,
 
     #[bit_byte(7, 0, 66, 67)]
-    compliant_standard_5: u8, //VersionDescriptor,
+    compliant_standard_5: u16, //VersionDescriptor,
 
     #[bit_byte(7, 0, 68, 69)]
-    compliant_standard_6: u8, //VersionDescriptor,
+    compliant_standard_6: u16, //VersionDescriptor,
 
     #[bit_byte(7, 0, 70, 71)]
-    compliant_standard_7: u8, //VersionDescriptor,
+    compliant_standard_7: u16, //VersionDescriptor,
 
     #[bit_byte(7, 0, 72, 73)]
-    compliant_standard_8: u8, //VersionDescriptor,
+    compliant_standard_8: u16, //VersionDescriptor,
 }
 
 impl InquiryResponse {
@@ -169,9 +169,7 @@ impl Default for InquiryResponse {
         s.set_product_identification(&[ASCII_SPACE; 16]);
         s.set_product_revision_level(&[ASCII_SPACE; 4]);
         s.set_compliant_standard_1(VersionDescriptor::SAM3NoVersionClaimed as _);
-        #[allow(clippy::cast_enum_truncation)]
         s.set_compliant_standard_2(VersionDescriptor::SPC4NoVersionClaimed as _);
-        #[allow(clippy::cast_enum_truncation)]
         s.set_compliant_standard_3(VersionDescriptor::SBC3NoVersionClaimed as _);
 
         s.set_peripheral_qualifier(Default::default());
