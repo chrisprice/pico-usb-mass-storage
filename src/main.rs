@@ -32,7 +32,8 @@ const MAX_LUN: u8 = 0; // max 0x0F
 
 #[embassy_executor::main]
 async fn main(#[allow(unused_variables)] spawner: Spawner) {
-    fat12_partition::init(unsafe { STORAGE.as_blocks_mut() });
+    #[allow(static_mut_refs)]
+    fat12_partition::init(unsafe { &mut STORAGE });
 
     let p = embassy_rp::init(Default::default());
 

@@ -12,13 +12,23 @@ impl Storage {
         Self([Block::new(); BLOCKS as usize])
     }
 
+    fn byte_len(&self) -> usize {
+        self.0.len() * BLOCK_SIZE
+    }
+
     #[allow(dead_code)]
     pub fn as_bytes(&self) -> &[u8] {
-        todo!()
+        let p = &self.0 as *const _ as *const u8;
+        let len = self.byte_len();
+
+        unsafe { core::slice::from_raw_parts(p, len) }
     }
 
     pub fn as_bytes_mut(&mut self) -> &mut [u8] {
-        todo!()
+        let p = &mut self.0 as *mut _ as *mut u8;
+        let len = self.byte_len();
+
+        unsafe { core::slice::from_raw_parts_mut(p, len) }
     }
 
     #[allow(dead_code)]
@@ -26,6 +36,7 @@ impl Storage {
         &self.0
     }
 
+    #[allow(dead_code)]
     pub fn as_blocks_mut(&mut self) -> &mut [Block; BLOCKS as usize] {
         &mut self.0
     }
