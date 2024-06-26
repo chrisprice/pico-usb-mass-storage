@@ -42,6 +42,7 @@ impl CommandBlockWrapper {
             return Err(Error::InvalidLength);
         }
 
+        // TODO: #[overlay] a struct onto this CBW, rather than parsing
         Ok(CommandBlockWrapper {
             tag: u32::from_le_bytes(value[4..8].try_into().unwrap()),
             data_transfer_len: u32::from_le_bytes(value[8..12].try_into().unwrap()),
