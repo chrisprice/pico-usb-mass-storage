@@ -122,18 +122,11 @@ async fn main(spawner: Spawner) {
     #[cfg(feature = "wifi")]
     {
         let wifi_fut = wifi.run();
-        embassy_futures::join::join3(
-            usb_fut,
-            usb_mass_storage_fut,
-            wifi_fut
-        ).await;
+        embassy_futures::join::join3(usb_fut, usb_mass_storage_fut, wifi_fut).await;
     }
     #[cfg(not(feature = "wifi"))]
     {
-        embassy_futures::join::join(
-            usb_fut,
-            usb_mass_storage_fut
-        ).await;
+        embassy_futures::join::join(usb_fut, usb_mass_storage_fut).await;
     }
 }
 
