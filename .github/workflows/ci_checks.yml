@@ -45,6 +45,9 @@ jobs:
           components: clippy
           target: thumbv6m-none-eabi
       - run: cargo clippy --all-features -- --deny=warnings
+        env:
+          WIFI_NETWORK: wifinet
+          WIFI_PASSWORD: wifipass
   formatting:
     name: Formatting
     runs-on: ubuntu-latest
