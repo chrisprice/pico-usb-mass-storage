@@ -161,9 +161,6 @@ impl Default for InquiryResponse {
         let mut s = Self::new();
 
         s.set_removable_medium(true);
-        //TODO(upstream): Work out why off by 1, docs say -4 but that's one byte too long
-        //      It could be that sg_inq is adding 1 for some reason, the OS hasn't
-        //      actually followed up with a longer request in real use.
         s.set_additional_length(0); // we have no additional length, 36 bytes works fine
         s.set_vendor_identification(&[ASCII_SPACE; 8]);
         s.set_product_identification(&[ASCII_SPACE; 16]);
