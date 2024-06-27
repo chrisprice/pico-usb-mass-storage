@@ -1,9 +1,8 @@
-use packing::Packed;
 use num_enum::TryFromPrimitive;
 
 #[repr(u8)]
 #[derive(TryFromPrimitive)]
-#[derive(Clone, Copy, Eq, PartialEq, Debug, Packed, Default)]
+#[derive(Clone, Copy, Eq, PartialEq, Debug, Default)]
 pub enum SpcVersion {
     //The device server does not claim conformance to any standard.
     None = 0x00,
