@@ -165,9 +165,9 @@ impl Default for InquiryResponse {
         s.set_vendor_identification(&[ASCII_SPACE; 8]);
         s.set_product_identification(&[ASCII_SPACE; 16]);
         s.set_product_revision_level(&[ASCII_SPACE; 4]);
-        s.set_compliant_standard_1(VersionDescriptor::SAM3NoVersionClaimed as _);
-        s.set_compliant_standard_2(VersionDescriptor::SPC4NoVersionClaimed as _);
-        s.set_compliant_standard_3(VersionDescriptor::SBC3NoVersionClaimed as _);
+        s.set_compliant_standard_1(VersionDescriptor::SAM3NoVersionClaimed);
+        s.set_compliant_standard_2(VersionDescriptor::SPC4NoVersionClaimed);
+        s.set_compliant_standard_3(VersionDescriptor::SBC3NoVersionClaimed);
 
         s.set_peripheral_qualifier(Default::default());
         s.set_peripheral_device_type(Default::default());

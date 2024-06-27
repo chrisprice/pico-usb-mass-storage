@@ -71,7 +71,7 @@ impl<'d, 'bd, B: Driver<'d>, BD: BlockDevice, M: RawMutex> Scsi<'d, 'bd, B, BD, 
         inquiry_response.set_product_identification(product_identification);
         inquiry_response.set_product_revision_level(product_revision_level);
 
-        inquiry_response.set_version(SpcVersion::Spc2 as u8); // we are compliant (???)
+        inquiry_response.set_version(SpcVersion::Spc2); // we are compliant (???)
 
         Self {
             transport: BulkOnlyTransport::new(endpoints),
