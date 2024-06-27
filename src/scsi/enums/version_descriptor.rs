@@ -1,5 +1,8 @@
 use packing::Packed;
+use num_enum::TryFromPrimitive;
 
+#[repr(u16)]
+#[derive(TryFromPrimitive)]
 #[derive(Clone, Copy, Eq, PartialEq, Debug, Packed, Default)]
 pub enum VersionDescriptor {
     #[default]

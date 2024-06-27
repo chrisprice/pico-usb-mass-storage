@@ -2,11 +2,11 @@ use overlay_macro::overlay;
 
 use crate::scsi::enums::{
     VersionDescriptor,
-    // TargetPortGroupSupport,
-    // SpcVersion,
-    // PeripheralQualifier,
-    // PeripheralDeviceType,
-    // ResponseDataFormat,
+    TargetPortGroupSupport,
+    SpcVersion,
+    PeripheralQualifier,
+    PeripheralDeviceType,
+    ResponseDataFormat,
 };
 
 // ASCII space is used to pad shorter string identifiers as per SPC
@@ -16,10 +16,10 @@ const ASCII_SPACE: u8 = 0x20;
 #[derive(Clone, Copy, Eq, PartialEq, Debug)]
 pub struct InquiryResponse {
     #[bit_byte(7, 5, 0, 0)]
-    peripheral_qualifier: u8, //PeripheralQualifier,
+    peripheral_qualifier: PeripheralQualifier,
 
     #[bit_byte(4, 0, 0, 0)]
-    peripheral_device_type: u8, //PeripheralDeviceType,
+    peripheral_device_type: PeripheralDeviceType,
 
     ///A removable medium ( RMB ) bit set to zero indicates that the medium is not removable. A RMB bit set to one indicates that the medium is removable.
     #[bit_byte(7, 7, 1, 1)]
@@ -27,7 +27,7 @@ pub struct InquiryResponse {
 
     ///The VERSION field indicates the implemented version of this standard and is defined in table 142
     #[bit_byte(7, 0, 2, 2)]
-    pub version: u8, //SpcVersion,
+    pub version: SpcVersion,
 
     ///The Normal ACA Supported (NORMACA) bit set to one indicates that the device server supports a NACA bit set to one in the CDB CONTROL byte and supports the ACA task attribute (see SAM-4). A N ORM ACA bit set to zero indicates that the device server does not support a NACA bit set to one and does not support the ACA task attribute.
     #[bit_byte(5, 5, 3, 3)]
@@ -39,7 +39,7 @@ pub struct InquiryResponse {
 
     ///The RESPONSE DATA FORMAT field indicates the format of the standard INQUIRY data and shall be set as shown in table 139. A RESPONSE DATA FORMAT field set to 2h indicates that the standard INQUIRY data is in the format defined in this standard. Response data format values less than 2h are obsolete. Response data format values greater than 2h are reserved.
     #[bit_byte(3, 0, 3, 3)]
-    response_data_format: u8, //ResponseDataFormat,
+    response_data_format: ResponseDataFormat,
 
     ///The ADDITIONAL LENGTH field indicates the length in bytes of the remaining standard INQUIRY data. The relationship between the ADDITIONAL LENGTH field and the CDB ALLOCATION LENGTH field is defined in 4.3.5.6.
     ///Set to total length in bytes minus 4
@@ -56,7 +56,7 @@ pub struct InquiryResponse {
 
     ///The contents of the target port group support ( TPGS ) field (see table 143) indicate the support for asymmetric logical unit access (see 5.11).
     #[bit_byte(5, 4, 5, 5)]
-    target_port_group_support: u8, //TargetPortGroupSupport,
+    target_port_group_support: TargetPortGroupSupport,
 
     ///A Third-Party Copy (3PC) bit set to one indicates that the SCSI target device contains a copy manager that is addressable through this logical unit. A 3 PC bit set to zero indicates that no copy manager is addressable through this logical unit.
     #[bit_byte(3, 3, 5, 5)]
@@ -128,28 +128,28 @@ pub struct InquiryResponse {
 
     ///The VERSION DESCRIPTOR fields provide for identifying up to eight standards to which the SCSI target device and/or logical unit claim conformance. The value in each VERSION DESCRIPTOR field shall be selected from table 144. All version descriptor values not listed in table 144 are reserved. Technical Committee T10 of INCITS maintains an electronic copy of the information in table 144 on its world wide web site (http://www.t10.org/). In the event that the T10 world wide web site is no longer active, access may be possible via the INCITS world wide web site (http://www.incits.org), the ANSI world wide web site (http://www.ansi.org), the IEC site (http://www.iec.ch/), the ISO site (http://www.iso.ch/), or the ISO/IEC JTC 1 web site (http://www.jtc1.org/). It is recommended that the first version descriptor be used for the SCSI architecture standard, followed by the physical transport standard if any, followed by the SCSI transport protocol standard, followed by the appropriate SPC-x version, followed by the device type command set, followed by a secondary command set if any.
     #[bit_byte(7, 0, 58, 59)]
-    compliant_standard_1: u16, //VersionDescriptor,
+    compliant_standard_1: VersionDescriptor,
 
     #[bit_byte(7, 0, 60, 61)]
-    compliant_standard_2: u16, //VersionDescriptor,
+    compliant_standard_2: VersionDescriptor,
 
     #[bit_byte(7, 0, 62, 63)]
-    compliant_standard_3: u16, //VersionDescriptor,
+    compliant_standard_3: VersionDescriptor,
 
     #[bit_byte(7, 0, 64, 65)]
-    compliant_standard_4: u16, //VersionDescriptor,
+    compliant_standard_4: VersionDescriptor,
 
     #[bit_byte(7, 0, 66, 67)]
-    compliant_standard_5: u16, //VersionDescriptor,
+    compliant_standard_5: VersionDescriptor,
 
     #[bit_byte(7, 0, 68, 69)]
-    compliant_standard_6: u16, //VersionDescriptor,
+    compliant_standard_6: VersionDescriptor,
 
     #[bit_byte(7, 0, 70, 71)]
-    compliant_standard_7: u16, //VersionDescriptor,
+    compliant_standard_7: VersionDescriptor,
 
     #[bit_byte(7, 0, 72, 73)]
-    compliant_standard_8: u16, //VersionDescriptor,
+    compliant_standard_8: VersionDescriptor,
 }
 
 impl InquiryResponse {

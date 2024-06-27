@@ -1,5 +1,8 @@
 use packing::Packed;
+use num_enum::TryFromPrimitive;
 
+#[repr(u8)]
+#[derive(TryFromPrimitive)]
 #[derive(Clone, Copy, Eq, PartialEq, Debug, Packed, Default)]
 pub enum TargetPortGroupSupport {
     //The logical unit does not support asymmetric logical unit access or supports a form of asymmetric access that is vendor specific. Neither the REPORT TARGET GROUPS nor the SET TARGET PORT GROUPS commands is supported.
