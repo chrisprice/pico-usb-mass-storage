@@ -1,11 +1,11 @@
-use packing::Packed;
+use overlay_macro::overlay;
 
-#[derive(Clone, Copy, Eq, PartialEq, Debug, Packed)]
-#[packed(big_endian, lsb0)]
+#[overlay]
+#[derive(Clone, Copy, Eq, PartialEq, Debug)]
 pub struct ReadCapacity10Response {
-    #[pkd(7, 0, 0, 3)]
+    #[overlay(bytes= 0..= 3, bits= 0..=7)]
     pub max_lba: u32,
 
-    #[pkd(7, 0, 4, 7)]
+    #[overlay(bytes= 4..= 7, bits= 0..=7)]
     pub block_size: u32,
 }

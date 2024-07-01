@@ -1,19 +1,19 @@
-use crate::scsi::{commands::Control, packing::ParsePackedStruct};
-use packing::Packed;
+use overlay_macro::overlay;
 
-#[derive(Clone, Copy, Eq, PartialEq, Debug, Packed)]
-#[packed(big_endian, lsb0)]
+use crate::scsi::commands::Control;
+
+#[overlay]
+#[derive(Clone, Copy, Eq, PartialEq, Debug)]
 pub struct ReadFormatCapacitiesCommand {
-    #[pkd(7, 0, 0, 0)]
+    #[overlay(bytes= 0..= 0, bits= 0..=7)]
     pub op_code: u8,
 
-    #[pkd(7, 5, 1, 1)]
+    #[overlay(bytes= 1..= 1, bits= 5..=7)]
     pub logical_unit_number: u8,
 
-    #[pkd(7, 0, 7, 8)]
+    #[overlay(bytes= 7..= 8, bits= 0..=7)]
     pub allocation_length: u16,
 
-    #[pkd(7, 0, 11, 11)]
+    #[overlay(bytes= 11..= 11, nested)]
     pub control: Control,
 }
-impl ParsePackedStruct for ReadFormatCapacitiesCommand {}

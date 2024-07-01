@@ -1,5 +1,6 @@
-use crate::scsi::{commands::Control, packing::ParsePackedStruct};
-use packing::Packed;
+use overlay_macro::overlay;
+
+use crate::scsi::commands::Control;
 
 #[derive(Clone, Copy, Eq, PartialEq, Debug)]
 pub struct WriteXCommand {
@@ -7,107 +8,104 @@ pub struct WriteXCommand {
     pub transfer_length: u32,
 }
 
-#[derive(Clone, Copy, Eq, PartialEq, Debug, Packed)]
-#[packed(big_endian, lsb0)]
+#[overlay]
+#[derive(Clone, Copy, Eq, PartialEq, Debug)]
 pub struct Write6Command {
-    #[pkd(7, 0, 0, 0)]
+    #[overlay(bytes= 0..= 0, bits= 0..=7)]
     pub op_code: u8,
 
-    #[pkd(4, 0, 1, 3)]
+    #[overlay(bytes= 1..= 3, bits= 0..=4)]
     pub lba: u32,
 
-    #[pkd(7, 0, 4, 4)]
+    #[overlay(bytes= 4..= 4, bits= 0..=7)]
     pub transfer_length: u8,
 
-    #[pkd(7, 0, 5, 5)]
+    #[overlay(bytes= 5..= 5, nested)]
     pub control: Control,
 }
-impl ParsePackedStruct for Write6Command {}
 impl From<Write6Command> for WriteXCommand {
     fn from(w: Write6Command) -> Self {
         Self {
-            lba: w.lba,
-            transfer_length: w.transfer_length.into(),
+            lba: w.lba(),
+            transfer_length: w.transfer_length().into(),
         }
     }
 }
 
-#[derive(Clone, Copy, Eq, PartialEq, Debug, Packed)]
-#[packed(big_endian, lsb0)]
+#[overlay]
+#[derive(Clone, Copy, Eq, PartialEq, Debug)]
 pub struct Write10Command {
-    #[pkd(7, 0, 0, 0)]
+    #[overlay(bytes= 0..= 0, bits= 0..=7)]
     pub op_code: u8,
 
-    #[pkd(7, 5, 1, 1)]
+    #[overlay(bytes= 1..= 1, bits= 5..=7)]
     pub wr_protect: u8,
 
-    #[pkd(4, 4, 1, 1)]
+    #[overlay(bytes= 1..= 1, bits= 4..=4)]
     pub dpo: bool,
 
-    #[pkd(3, 3, 1, 1)]
+    #[overlay(bytes= 1..= 1, bits= 3..=3)]
     pub fua: bool,
 
-    #[pkd(1, 1, 1, 1)]
+    #[overlay(bytes= 1..= 1, bits= 1..=1)]
     pub fua_nv: bool,
 
-    #[pkd(7, 0, 2, 5)]
+    #[overlay(bytes= 2..= 5, bits= 0..=7)]
     pub lba: u32,
 
-    #[pkd(4, 0, 6, 6)]
+    #[overlay(bytes= 6..= 6, bits= 0..=4)]
     pub group_number: u8,
 
-    #[pkd(7, 0, 7, 8)]
+    #[overlay(bytes= 7..= 8, bits= 0..=7)]
     pub transfer_length: u16,
 
-    #[pkd(7, 0, 9, 9)]
+    #[overlay(bytes= 9..= 9, nested)]
     pub control: Control,
 }
-impl ParsePackedStruct for Write10Command {}
 impl From<Write10Command> for WriteXCommand {
     fn from(w: Write10Command) -> Self {
         Self {
-            lba: w.lba,
-            transfer_length: w.transfer_length.into(),
+            lba: w.lba(),
+            transfer_length: w.transfer_length().into(),
         }
     }
 }
 
-#[derive(Clone, Copy, Eq, PartialEq, Debug, Packed)]
-#[packed(big_endian, lsb0)]
+#[overlay]
+#[derive(Clone, Copy, Eq, PartialEq, Debug)]
 pub struct Write12Command {
-    #[pkd(7, 0, 0, 0)]
+    #[overlay(bytes= 0..= 0, bits= 0..=7)]
     pub op_code: u8,
 
-    #[pkd(7, 5, 1, 1)]
+    #[overlay(bytes= 1..= 1, bits= 5..=7)]
     pub wr_protect: u8,
 
-    #[pkd(4, 4, 1, 1)]
+    #[overlay(bytes= 1..= 1, bits= 4..=4)]
     pub dpo: bool,
 
-    #[pkd(3, 3, 1, 1)]
+    #[overlay(bytes= 1..= 1, bits= 3..=3)]
     pub fua: bool,
 
-    #[pkd(1, 1, 1, 1)]
+    #[overlay(bytes= 1..= 1, bits= 1..=1)]
     pub fua_nv: bool,
 
-    #[pkd(7, 0, 2, 5)]
+    #[overlay(bytes= 2..= 5, bits= 0..=7)]
     pub lba: u32,
 
-    #[pkd(7, 0, 6, 9)]
+    #[overlay(bytes= 6..= 9, bits= 0..=7)]
     pub transfer_length: u32,
 
-    #[pkd(4, 0, 10, 10)]
+    #[overlay(bytes= 10..= 10, bits= 0..=4)]
     pub group_number: u8,
 
-    #[pkd(7, 0, 11, 11)]
+    #[overlay(bytes= 11..= 11, nested)]
     pub control: Control,
 }
-impl ParsePackedStruct for Write12Command {}
 impl From<Write12Command> for WriteXCommand {
     fn from(w: Write12Command) -> Self {
         Self {
-            lba: w.lba,
-            transfer_length: w.transfer_length,
+            lba: w.lba(),
+            transfer_length: w.transfer_length(),
         }
     }
 }

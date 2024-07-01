@@ -1,31 +1,31 @@
-use crate::scsi::{commands::Control, packing::ParsePackedStruct};
-use packing::Packed;
+use overlay_macro::overlay;
 
-#[derive(Clone, Copy, Eq, PartialEq, Debug, Packed)]
-#[packed(big_endian, lsb0)]
+use crate::scsi::commands::Control;
+
+#[overlay]
+#[derive(Clone, Copy, Eq, PartialEq, Debug)]
 pub struct Verify10Command {
-    #[pkd(7, 0, 0, 0)]
+    #[overlay(bytes= 0..= 0, bits= 0..=7)]
     pub op_code: u8,
 
-    #[pkd(7, 5, 1, 1)]
+    #[overlay(bytes= 1..= 1, bits= 5..=7)]
     pub vr_protect: u8,
 
-    #[pkd(4, 4, 1, 1)]
+    #[overlay(bytes= 1..= 1, bits= 4..=4)]
     pub dpo: bool,
 
-    #[pkd(1, 1, 1, 1)]
+    #[overlay(bytes= 1..= 1, bits= 1..=1)]
     pub byte_check: u8,
 
-    #[pkd(7, 0, 2, 5)]
+    #[overlay(bytes= 2..= 5, bits= 0..=7)]
     pub lba: u32,
 
-    #[pkd(4, 0, 6, 6)]
+    #[overlay(bytes= 6..= 6, bits= 0..=4)]
     pub group_number: u8,
 
-    #[pkd(7, 0, 7, 8)]
+    #[overlay(bytes= 7..= 8, bits= 0..=7)]
     pub verification_length: u16,
 
-    #[pkd(7, 0, 9, 9)]
+    #[overlay(bytes= 9..= 9, nested)]
     pub control: Control,
 }
-impl ParsePackedStruct for Verify10Command {}

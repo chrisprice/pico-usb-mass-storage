@@ -1,28 +1,28 @@
-use crate::scsi::{commands::Control, packing::ParsePackedStruct};
-use packing::Packed;
+use overlay_macro::overlay;
 
-#[derive(Clone, Copy, Eq, PartialEq, Debug, Packed)]
-#[packed(big_endian, lsb0)]
+use crate::scsi::commands::Control;
+
+#[overlay]
+#[derive(Clone, Copy, Eq, PartialEq, Debug)]
 pub struct FormatCommand {
-    #[pkd(7, 0, 0, 0)]
+    #[overlay(bytes= 0..= 0, bits= 0..=7)]
     pub op_code: u8,
 
-    #[pkd(7, 6, 1, 1)]
+    #[overlay(bytes= 1..= 1, bits= 6..=7)]
     pub format_protection_information: u8,
 
-    #[pkd(5, 5, 1, 1)]
+    #[overlay(bytes= 1..= 1, bits= 5..=5)]
     pub long_list: bool,
 
-    #[pkd(4, 4, 1, 1)]
+    #[overlay(bytes= 1..= 1, bits= 4..=4)]
     pub format_data: bool,
 
-    #[pkd(3, 3, 1, 1)]
+    #[overlay(bytes= 1..= 1, bits= 3..=3)]
     pub complete_list: bool,
 
-    #[pkd(2, 0, 1, 1)]
+    #[overlay(bytes= 1..= 1, bits= 0..=2)]
     pub defect_list_format: u8,
 
-    #[pkd(7, 0, 5, 5)]
+    #[overlay(bytes= 5..= 5, nested)]
     pub control: Control,
 }
-impl ParsePackedStruct for FormatCommand {}

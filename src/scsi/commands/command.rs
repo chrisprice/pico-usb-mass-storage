@@ -1,7 +1,5 @@
-use packing::Packed;
-
 use crate::bulk_only_transport::CommandBlock;
-use crate::scsi::{commands::*, enums::*, packing::ParsePackedStruct, Error};
+use crate::scsi::{commands::*, enums::*, Error};
 
 /// A fully parsed and validated SCSI command
 #[derive(Clone, Copy, Eq, PartialEq, Debug, defmt::Format)] // FIXME: don't use Debug2Format
@@ -26,68 +24,47 @@ pub enum Command {
 
 impl Command {
     pub fn extract_from_cbw(cbw: &CommandBlock) -> Result<Command, Error> {
-        let op_code = OpCode::from_primitive(cbw.bytes[0]).map_err(|_| Error::UnhandledOpCode)?;
+        use num_enum::TryFromPrimitive;
+
+        let op_code =
+            OpCode::try_from_primitive(cbw.bytes[0]).map_err(|_| Error::UnhandledOpCode)?;
         match op_code {
-            OpCode::Read6 => Ok(Command::Read((*overlay::<Read6Command>(cbw)?).into())),
-            OpCode::Read10 => Ok(Command::Read((*overlay::<Read10Command>(cbw)?).into())),
-            OpCode::Read12 => Ok(Command::Read((*overlay::<Read12Command>(cbw)?).into())),
-            OpCode::ReadCapacity10 => Ok(Command::ReadCapacity(checked_extract(cbw)?)),
-            OpCode::ReadFormatCapacities => {
-                Ok(Command::ReadFormatCapacities(checked_extract(cbw)?))
-            }
             // TODO: return &Command and avoid the copy here
-            OpCode::Inquiry => Ok(Command::Inquiry(*overlay(cbw)?)),
-            OpCode::TestUnitReady => Ok(Command::TestUnitReady(checked_extract(cbw)?)),
+            OpCode::Read6 => Ok(Command::Read((overlay::<Read6Command>(cbw)?).into())),
+            OpCode::Read10 => Ok(Command::Read((overlay::<Read10Command>(cbw)?).into())),
+            OpCode::Read12 => Ok(Command::Read((overlay::<Read12Command>(cbw)?).into())),
+            OpCode::ReadCapacity10 => Ok(Command::ReadCapacity(overlay(cbw)?)),
+            OpCode::ReadFormatCapacities => Ok(Command::ReadFormatCapacities(overlay(cbw)?)),
+            OpCode::Inquiry => Ok(Command::Inquiry(overlay(cbw)?)),
+            OpCode::TestUnitReady => Ok(Command::TestUnitReady(overlay(cbw)?)),
             OpCode::ModeSense6 => Ok(Command::ModeSense(
-                checked_extract::<ModeSense6Command>(cbw)?.into(),
+                (overlay::<ModeSense6Command>(cbw)?).into(),
             )),
             OpCode::ModeSense10 => Ok(Command::ModeSense(
-                checked_extract::<ModeSense10Command>(cbw)?.into(),
+                (overlay::<ModeSense10Command>(cbw)?).into(),
             )),
-            OpCode::ModeSelect6 => Ok(Command::ModeSelect(
-                checked_extract::<ModeSelect6Command>(cbw)?.into(),
-            )),
-            OpCode::ModeSelect10 => Ok(Command::ModeSelect(
-                checked_extract::<ModeSelect10Command>(cbw)?.into(),
-            )),
+            OpCode::ModeSelect6 => Ok(Command::ModeSelect(overlay(cbw)?)),
+            OpCode::ModeSelect10 => Ok(Command::ModeSelect(overlay(cbw)?)),
             OpCode::PreventAllowMediumRemoval => {
-                Ok(Command::PreventAllowMediumRemoval(checked_extract(cbw)?))
+                Ok(Command::PreventAllowMediumRemoval(overlay(cbw)?))
             }
-            OpCode::RequestSense => Ok(Command::RequestSense(checked_extract(cbw)?)),
-            OpCode::Write6 => Ok(Command::Write(
-                checked_extract::<Write6Command>(cbw)?.into(),
-            )),
-            OpCode::Write10 => Ok(Command::Write(
-                checked_extract::<Write10Command>(cbw)?.into(),
-            )),
-            OpCode::Write12 => Ok(Command::Write(
-                checked_extract::<Write12Command>(cbw)?.into(),
-            )),
-            OpCode::Format => Ok(Command::Format(checked_extract(cbw)?)),
-            OpCode::SendDiagnostic => Ok(Command::SendDiagnostic(checked_extract(cbw)?)),
-            OpCode::ReportLuns => Ok(Command::ReportLuns(checked_extract(cbw)?)),
-            OpCode::StartStopUnit => Ok(Command::StartStopUnit(checked_extract(cbw)?)),
-            OpCode::Verify10 => Ok(Command::Verify(checked_extract(cbw)?)),
-            OpCode::SynchronizeCache10 => Ok(Command::SynchronizeCache(checked_extract(cbw)?)),
+            OpCode::RequestSense => Ok(Command::RequestSense(overlay(cbw)?)),
+            OpCode::Write6 => Ok(Command::Write((overlay::<Write6Command>(cbw)?).into())),
+            OpCode::Write10 => Ok(Command::Write((overlay::<Write10Command>(cbw)?).into())),
+            OpCode::Write12 => Ok(Command::Write((overlay::<Write12Command>(cbw)?).into())),
+            OpCode::Format => Ok(Command::Format(overlay(cbw)?)),
+            OpCode::SendDiagnostic => Ok(Command::SendDiagnostic(overlay(cbw)?)),
+            OpCode::ReportLuns => Ok(Command::ReportLuns(overlay(cbw)?)),
+            OpCode::StartStopUnit => Ok(Command::StartStopUnit(overlay(cbw)?)),
+            OpCode::Verify10 => Ok(Command::Verify(overlay(cbw)?)),
+            OpCode::SynchronizeCache10 => Ok(Command::SynchronizeCache(overlay(cbw)?)),
             _ => Err(Error::UnhandledOpCode),
         }
     }
 }
 
-fn overlay<'a, T: overlay::Overlay>(cbw: &'a CommandBlock) -> Result<&'a T, Error> {
-    T::overlay(cbw.bytes).map_err(|e| match e {
+fn overlay<'a, T: overlay::Overlay + Copy>(cbw: &'a CommandBlock) -> Result<T, Error> {
+    T::overlay(cbw.bytes).map(|p| *p).map_err(|e| match e {
         overlay::Error::InsufficientLength => Error::InsufficientDataForCommand,
     })
-}
-
-fn checked_extract<T>(cbw: &CommandBlock) -> Result<T, Error>
-where
-    T: ParsePackedStruct,
-    Error: From<<T as Packed>::Error>,
-    packing::Error: From<<T as Packed>::Error>,
-{
-    if cbw.bytes.len() < T::BYTES {
-        Err(Error::InsufficientDataForCommand)?;
-    }
-    Ok(T::parse(cbw.bytes)?)
 }

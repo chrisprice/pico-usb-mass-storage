@@ -1,68 +1,73 @@
-use crate::scsi::enums::MediumType;
-use packing::{Packed, PackedSize};
+use num_enum::TryFromPrimitive;
+use overlay_macro::overlay;
 
-#[derive(Clone, Copy, Eq, PartialEq, Debug, Packed)]
-#[packed(big_endian, lsb0)]
+use crate::scsi::enums::MediumType;
+
+#[overlay]
+#[derive(Clone, Copy, Eq, PartialEq, Debug)]
 pub struct ModeParameterHeader6 {
-    #[pkd(7, 0, 0, 0)]
+    #[overlay(bytes= 0..= 0, bits= 0..=7)]
     pub mode_data_length: u8,
 
-    #[pkd(7, 0, 1, 1)]
+    #[overlay(bytes= 1..= 1, bits= 0..=7)]
     pub medium_type: MediumType,
 
-    #[pkd(7, 0, 2, 2)]
+    #[overlay(bytes= 2..= 2,  nested)]
     pub device_specific_parameter: SbcDeviceSpecificParameter,
 
-    #[pkd(7, 0, 3, 3)]
+    #[overlay(bytes= 3..= 3, bits= 0..=7)]
     pub block_descriptor_length: u8,
 }
 impl Default for ModeParameterHeader6 {
     fn default() -> Self {
-        Self {
-            mode_data_length: Self::BYTES as u8 - 1,
-            medium_type: Default::default(),
-            device_specific_parameter: Default::default(),
-            block_descriptor_length: 0,
-        }
+        let mut header = Self::new();
+        header.set_mode_data_length(Self::BYTE_LEN as u8 - 1);
+        header.set_medium_type(Default::default());
+        *header.device_specific_parameter_mut() = Default::default();
+        header.set_block_descriptor_length(0);
+        header
     }
 }
 impl ModeParameterHeader6 {
     /// Increase the relevant length fields to indicate the provided page follows this header
     /// can be called multiple times but be aware of the max length allocated by CBW
     pub fn increase_length_for_page(&mut self, page_code: PageCode) {
-        self.mode_data_length += match page_code {
-            PageCode::CachingModePage => CachingModePage::BYTES as u8,
-        };
+        self.set_mode_data_length(
+            self.mode_data_length()
+                + match page_code {
+                    PageCode::CachingModePage => CachingModePage::BYTE_LEN as u8,
+                },
+        );
     }
 }
 
-#[derive(Clone, Copy, Eq, PartialEq, Debug, Packed)]
-#[packed(big_endian, lsb0)]
+#[overlay]
+#[derive(Clone, Copy, Eq, PartialEq, Debug)]
 pub struct ModeParameterHeader10 {
-    #[pkd(7, 0, 0, 1)]
+    #[overlay(bytes= 0..= 1, bits= 0..=7)]
     pub mode_data_length: u16,
 
-    #[pkd(7, 0, 2, 2)]
+    #[overlay(bytes= 2..= 2, bits= 0..=7)]
     pub medium_type: MediumType,
 
-    #[pkd(7, 0, 3, 3)]
+    #[overlay(bytes= 3..= 3, nested)]
     pub device_specific_parameter: SbcDeviceSpecificParameter,
 
-    #[pkd(0, 0, 4, 4)]
+    #[overlay(bytes= 4..= 4, bits= 0..=0)]
     pub long_lba: bool,
 
-    #[pkd(7, 0, 6, 7)]
+    #[overlay(bytes= 6..= 7, bits= 0..=7)]
     pub block_descriptor_length: u16,
 }
 impl Default for ModeParameterHeader10 {
     fn default() -> Self {
-        Self {
-            mode_data_length: Self::BYTES as u16 - 2,
-            medium_type: Default::default(),
-            device_specific_parameter: Default::default(),
-            long_lba: Default::default(),
-            block_descriptor_length: 0,
-        }
+        let mut header = Self::new();
+        header.set_mode_data_length(Self::BYTE_LEN as u16 - 2);
+        header.set_medium_type(Default::default());
+        *header.device_specific_parameter_mut() = Default::default();
+        header.set_long_lba(Default::default());
+        header.set_block_descriptor_length(0);
+        header
     }
 }
 impl ModeParameterHeader10 {
@@ -70,23 +75,27 @@ impl ModeParameterHeader10 {
     /// can be called multiple times but be aware of the max length allocated by CBW
     #[allow(dead_code)]
     pub fn increase_length_for_page(&mut self, page_code: PageCode) {
-        self.mode_data_length += match page_code {
-            PageCode::CachingModePage => CachingModePage::BYTES as u16,
-        };
+        self.set_mode_data_length(
+            self.mode_data_length()
+                + match page_code {
+                    PageCode::CachingModePage => CachingModePage::BYTE_LEN as u16,
+                },
+        );
     }
 }
 
-#[derive(Clone, Copy, Eq, PartialEq, Debug, Packed, Default)]
-#[packed(big_endian, lsb0)]
+#[overlay]
+#[derive(Clone, Copy, Eq, PartialEq, Debug, Default)]
 pub struct SbcDeviceSpecificParameter {
-    #[pkd(7, 7, 0, 0)]
+    #[overlay(bytes= 0..= 0, bits= 7..=7)]
     pub write_protect: bool,
 
-    #[pkd(4, 4, 0, 0)]
+    #[overlay(bytes= 0..= 0, bits= 4..=4)]
     pub disable_page_out_and_force_unit_access_available: bool,
 }
 
-#[derive(Clone, Copy, Eq, PartialEq, Debug, Packed)]
+#[repr(u8)]
+#[derive(TryFromPrimitive, Clone, Copy, Eq, PartialEq, Debug)]
 pub enum PageCode {
     CachingModePage = 0x08,
 }
@@ -94,28 +103,28 @@ pub enum PageCode {
 /// This is only a partial implementation, there are a whole load of extra
 /// fields defined in SBC-3 6.4.5
 /// Default config is no read or write cache
-#[derive(Clone, Copy, Eq, PartialEq, Debug, Packed)]
-#[packed(big_endian, lsb0)]
+#[overlay]
+#[derive(Clone, Copy, Eq, PartialEq, Debug)]
 pub struct CachingModePage {
-    #[pkd(5, 0, 0, 0)]
+    #[overlay(bytes= 0..= 0, bits= 0..=5)]
     pub page_code: PageCode,
 
-    #[pkd(7, 0, 1, 1)]
+    #[overlay(bytes= 1..= 1, bits= 0..=7)]
     pub page_length: u8,
 
-    #[pkd(2, 2, 2, 2)]
+    #[overlay(bytes= 2..= 2, bits= 2..=2)]
     pub write_cache_enabled: bool,
 
-    #[pkd(0, 0, 2, 2)]
+    #[overlay(bytes= 2..= 2, bits= 0..=0)]
     pub read_cache_disable: bool,
 }
 impl Default for CachingModePage {
     fn default() -> Self {
-        Self {
-            page_code: PageCode::CachingModePage,
-            page_length: Self::BYTES as u8,
-            write_cache_enabled: false,
-            read_cache_disable: true,
-        }
+        let mut mode = Self::new();
+        mode.set_page_code(PageCode::CachingModePage);
+        mode.set_page_length(Self::BYTE_LEN as u8);
+        mode.set_write_cache_enabled(false);
+        mode.set_read_cache_disable(true);
+        mode
     }
 }

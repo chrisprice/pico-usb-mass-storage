@@ -1,4 +1,3 @@
-use ::packing::PackedSize;
 use defmt::{error, info};
 use embassy_sync::blocking_mutex::raw::RawMutex;
 use embassy_usb::driver::Driver;
@@ -9,8 +8,6 @@ use crate::{
     scsi::enums::{AdditionalSenseCode, SenseKey},
     usb_mass_storage::{endpoints::Endpoints, TransportError},
 };
-
-use packing::Packed;
 
 use self::{
     commands::*,
@@ -23,7 +20,6 @@ pub use block_device::*;
 
 mod commands;
 mod enums;
-mod packing;
 mod responses;
 
 mod error;
@@ -170,14 +166,12 @@ impl<'scsi, BD: BlockDevice> bulk_only_transport::Handler for BulkHandler<'scsi,
                 // TODO: support read_capacity16 etc
                 let max_lba = self.block_device.block_count();
                 let block_size = BD::BLOCK_BYTES as u32;
-                let cap = ReadCapacity10Response {
-                    max_lba,
-                    block_size,
-                };
+                let mut cap = ReadCapacity10Response::new();
 
-                let mut buf = [0u8; ReadCapacity10Response::BYTES];
-                cap.pack(&mut buf).unwrap();
-                writer.write_all(&buf).await?;
+                cap.set_max_lba(max_lba);
+                cap.set_block_size(block_size);
+
+                writer.write_all(cap.as_bytes()).await?;
                 Ok(())
 
                 // TODO: readcap16:
@@ -228,9 +222,9 @@ impl<'scsi, BD: BlockDevice> bulk_only_transport::Handler for BulkHandler<'scsi,
                 Ok(())
             }
             Command::RequestSense(_) => {
-                let mut buf = [0u8; RequestSenseResponse::BYTES];
-                self.request_sense_response.pack(&mut buf).unwrap();
-                writer.write_all(&buf).await?;
+                writer
+                    .write_all(self.request_sense_response.as_bytes())
+                    .await?;
                 Ok(())
             }
             Command::ModeSense(ModeSenseXCommand {
@@ -293,10 +287,7 @@ impl<'scsi, BD: BlockDevice> bulk_only_transport::Handler for BulkHandler<'scsi,
         info!("scsi no-data command: {}", command);
 
         match command {
-            Command::PreventAllowMediumRemoval(PreventAllowMediumRemovalCommand {
-                prevent: _prevent,
-                ..
-            }) => {
+            Command::PreventAllowMediumRemoval(PreventAllowMediumRemovalCommand { .. }) => {
                 // TODO: pass up a level?
                 Ok(())
             }
@@ -327,8 +318,8 @@ impl<'scsi, BD: BlockDevice> bulk_only_transport::Handler for BulkHandler<'scsi,
 
 impl<BD> BulkHandler<'_, BD> {
     fn set_sense(&mut self, key: SenseKey, code: AdditionalSenseCode) {
-        self.request_sense_response.sense_key = key;
-        self.request_sense_response.additional_sense_code = code;
+        self.request_sense_response.set_sense_key(key);
+        self.request_sense_response.set_additional_sense_code(code);
 
         info!("sense: set to {}, {}", key, code);
     }
@@ -339,7 +330,6 @@ impl<BD> BulkHandler<'_, BD> {
             match e {
                 Error::UnhandledOpCode => AdditionalSenseCode::InvalidCommandOperationCode,
                 Error::InsufficientDataForCommand => AdditionalSenseCode::InvalidPacketSize,
-                Error::PackingError(_) => AdditionalSenseCode::InvalidFieldInCdb,
                 Error::BlockDeviceError(_) => AdditionalSenseCode::WriteError,
             },
         );

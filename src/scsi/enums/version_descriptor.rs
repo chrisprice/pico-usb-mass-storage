@@ -1,8 +1,7 @@
 use num_enum::TryFromPrimitive;
 
 #[repr(u16)]
-#[derive(TryFromPrimitive)]
-#[derive(Clone, Copy, Eq, PartialEq, Debug, Default)]
+#[derive(TryFromPrimitive, Clone, Copy, Eq, PartialEq, Debug, Default)]
 pub enum VersionDescriptor {
     #[default]
     None = 0x0000,

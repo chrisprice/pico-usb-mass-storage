@@ -1,8 +1,7 @@
 use num_enum::TryFromPrimitive;
 
 #[repr(u8)]
-#[derive(TryFromPrimitive)]
-#[derive(Clone, Copy, Eq, PartialEq, Debug, Default)]
+#[derive(TryFromPrimitive, Clone, Copy, Eq, PartialEq, Debug, Default)]
 pub enum PeripheralDeviceType {
     /// Direct access block device (e.g., magnetic disk)
     #[default]

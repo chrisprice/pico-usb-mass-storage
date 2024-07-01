@@ -1,16 +1,16 @@
-use crate::scsi::{commands::Control, packing::ParsePackedStruct};
-use packing::Packed;
+use overlay_macro::overlay;
 
-#[derive(Clone, Copy, Eq, PartialEq, Debug, Packed)]
-#[packed(big_endian, lsb0)]
+use crate::scsi::commands::Control;
+
+#[overlay]
+#[derive(Clone, Copy, Eq, PartialEq, Debug)]
 pub struct ReadCapacity10Command {
-    #[pkd(7, 0, 0, 0)]
+    #[overlay(bytes= 0..= 0, bits= 0..=7)]
     pub op_code: u8,
 
-    #[pkd(7, 0, 2, 5)]
+    #[overlay(bytes= 2..= 5, bits= 0..=7)]
     pub lba: u32,
 
-    #[pkd(7, 0, 9, 9)]
+    #[overlay(bytes= 9..= 9, nested)]
     pub control: Control,
 }
-impl ParsePackedStruct for ReadCapacity10Command {}
