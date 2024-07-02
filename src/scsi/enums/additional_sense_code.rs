@@ -61,6 +61,7 @@ impl AdditionalSenseCode {
     }
 }
 
+#[derive(Debug)]
 pub enum AdditionalSenseCodeError {
     InvalidEnumDiscriminant,
 }

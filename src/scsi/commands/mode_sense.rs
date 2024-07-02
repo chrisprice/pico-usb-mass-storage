@@ -27,25 +27,25 @@ pub struct ModeSenseXCommand {
 #[overlay]
 #[derive(Clone, Copy, Eq, PartialEq, Debug)]
 pub struct ModeSense6Command {
-    #[overlay(bytes= 0..= 0, bits= 0..=7)]
+    #[overlay(bytes=0..=0, bits=0..=7)]
     pub op_code: u8,
 
-    #[overlay(bytes= 1..= 1, bits= 3..=3)]
+    #[overlay(bytes=1..=1, bits=3..=3)]
     pub disable_block_descriptors: bool,
 
-    #[overlay(bytes= 2..= 2, bits= 6..=7)]
+    #[overlay(bytes=2..=2, bits=6..=7)]
     pub page_control: PageControl,
 
-    #[overlay(bytes= 2..= 2, bits= 0..=5)]
+    #[overlay(bytes=2..=2, bits=0..=5)]
     pub page_code: u8,
 
-    #[overlay(bytes= 3..= 3, bits= 0..=7)]
+    #[overlay(bytes=3..=3, bits=0..=7)]
     pub subpage_code: u8,
 
-    #[overlay(bytes= 4..= 4, bits= 0..=7)]
+    #[overlay(bytes=4..=4, bits=0..=7)]
     pub allocation_length: u8,
 
-    #[overlay(bytes= 5..= 5, nested)]
+    #[overlay(bytes=5..=5, nested)]
     pub control: Control,
 }
 impl From<ModeSense6Command> for ModeSenseXCommand {
@@ -60,28 +60,28 @@ impl From<ModeSense6Command> for ModeSenseXCommand {
 #[overlay]
 #[derive(Clone, Copy, Eq, PartialEq, Debug)]
 pub struct ModeSense10Command {
-    #[overlay(bytes= 0..= 0, bits= 0..=7)]
+    #[overlay(bytes=0..=0, bits=0..=7)]
     pub op_code: u8,
 
-    #[overlay(bytes= 1..= 1, bits= 4..=4)]
+    #[overlay(bytes=1..=1, bits=4..=4)]
     pub long_lba_accepted: bool,
 
-    #[overlay(bytes= 1..= 1, bits= 3..=3)]
+    #[overlay(bytes=1..=1, bits=3..=3)]
     pub disable_block_descriptors: bool,
 
-    #[overlay(bytes= 2..= 2, bits= 6..=7)]
+    #[overlay(bytes=2..=2, bits=6..=7)]
     pub page_control: PageControl,
 
-    #[overlay(bytes= 2..= 2, bits= 0..=5)]
+    #[overlay(bytes=2..=2, bits=0..=5)]
     pub page_code: u8,
 
-    #[overlay(bytes= 3..= 3, bits= 0..=7)]
+    #[overlay(bytes=3..=3, bits=0..=7)]
     pub subpage_code: u8,
 
-    #[overlay(bytes= 8..= 9, bits= 0..=7)]
+    #[overlay(bytes=8..=9)]
     pub allocation_length: u16,
 
-    #[overlay(bytes= 10..= 10, nested)]
+    #[overlay(bytes=10..=10, nested)]
     pub control: Control,
 }
 impl From<ModeSense10Command> for ModeSenseXCommand {

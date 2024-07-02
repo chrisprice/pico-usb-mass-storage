@@ -4,22 +4,22 @@ use overlay_macro::overlay;
 #[overlay]
 #[derive(Clone, Copy, Eq, PartialEq, Default, Debug)]
 pub struct InquiryCommand {
-    #[overlay(bytes= 0..= 0, bits= 0..=7)]
+    #[overlay(bytes=0..=0, bits=0..=7)]
     pub op_code: u8,
 
     /// If set, return vital data related to the page_code field
-    #[overlay(bytes= 1..= 1, bits= 0..=0)]
+    #[overlay(bytes=1..=1, bits=0..=0)]
     pub enable_vital_product_data: bool,
 
     /// What kind of vital data to return
-    #[overlay(bytes= 2..= 2, bits= 0..=7)]
+    #[overlay(bytes=2..=2, bits=0..=7)]
     pub page_code: u8,
 
     ///TODO: (check) Should match data_transfer_length in CBW
-    #[overlay(bytes= 3..= 4, bits= 0..=7)]
+    #[overlay(bytes=3..=4)]
     pub allocation_length: u16,
 
-    #[overlay(bytes= 5..= 5, nested)]
+    #[overlay(bytes=5..=5, nested)]
     pub control: Control,
 }
 

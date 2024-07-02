@@ -10,16 +10,16 @@ pub struct ReadXCommand {
 #[overlay]
 #[derive(Clone, Copy, Eq, PartialEq, Debug)]
 pub struct Read6Command {
-    #[overlay(bytes= 0..= 0, bits= 0..=7)]
+    #[overlay(bytes=0..=0, bits=0..=7)]
     pub op_code: u8,
 
-    #[overlay(bytes= 1..= 3, bits= 0..=4)]
+    #[overlay(bytes=1..=3, bits=4..24)]
     pub lba: u32,
 
-    #[overlay(bytes= 4..= 4, bits= 0..=7)]
+    #[overlay(bytes=4..=4, bits=0..=7)]
     pub transfer_length: u8,
 
-    #[overlay(bytes= 5..= 5, nested)]
+    #[overlay(bytes=5..=5, nested)]
     pub control: Control,
 }
 
@@ -35,31 +35,31 @@ impl From<Read6Command> for ReadXCommand {
 #[overlay]
 #[derive(Clone, Copy, Eq, PartialEq, Debug)]
 pub struct Read10Command {
-    #[overlay(bytes= 0..= 0, bits= 0..=7)]
+    #[overlay(bytes=0..=0, bits=0..=7)]
     pub op_code: u8,
 
-    #[overlay(bytes= 1..= 1, bits= 5..=7)]
+    #[overlay(bytes=1..=1, bits=5..=7)]
     pub rd_protect: u8,
 
-    #[overlay(bytes= 1..= 1, bits= 4..=4)]
+    #[overlay(bytes=1..=1, bits=4..=4)]
     pub dpo: bool,
 
-    #[overlay(bytes= 1..= 1, bits= 3..=3)]
+    #[overlay(bytes=1..=1, bits=3..=3)]
     pub fua: bool,
 
-    #[overlay(bytes= 1..= 1, bits= 1..=1)]
+    #[overlay(bytes=1..=1, bits=1..=1)]
     pub fua_nv: bool,
 
-    #[overlay(bytes= 2..= 5, bits= 0..=7)]
+    #[overlay(bytes=2..=5)]
     pub lba: u32,
 
-    #[overlay(bytes= 6..= 6, bits= 0..=4)]
+    #[overlay(bytes=6..=6, bits=0..=4)]
     pub group_number: u8,
 
-    #[overlay(bytes= 7..= 8, bits= 0..=7)]
+    #[overlay(bytes=7..=8)]
     pub transfer_length: u16,
 
-    #[overlay(bytes= 9..= 9, nested)]
+    #[overlay(bytes=9..=9, nested)]
     pub control: Control,
 }
 
@@ -75,31 +75,31 @@ impl From<Read10Command> for ReadXCommand {
 #[overlay]
 #[derive(Clone, Copy, Eq, PartialEq, Debug)]
 pub struct Read12Command {
-    #[overlay(bytes= 0..= 0, bits= 0..=7)]
+    #[overlay(bytes=0..=0, bits=0..=7)]
     pub op_code: u8,
 
-    #[overlay(bytes= 1..= 1, bits= 5..=7)]
+    #[overlay(bytes=1..=1, bits=5..=7)]
     pub rd_protect: u8,
 
-    #[overlay(bytes= 1..= 1, bits= 4..=4)]
+    #[overlay(bytes=1..=1, bits=4..=4)]
     pub dpo: bool,
 
-    #[overlay(bytes= 1..= 1, bits= 3..=3)]
+    #[overlay(bytes=1..=1, bits=3..=3)]
     pub fua: bool,
 
-    #[overlay(bytes= 1..= 1, bits= 1..=1)]
+    #[overlay(bytes=1..=1, bits=1..=1)]
     pub fua_nv: bool,
 
-    #[overlay(bytes= 2..= 5, bits= 0..=7)]
+    #[overlay(bytes=2..=5)]
     pub lba: u32,
 
-    #[overlay(bytes= 6..= 9, bits= 0..=7)]
+    #[overlay(bytes=6..=9)]
     pub transfer_length: u32,
 
-    #[overlay(bytes= 10..= 10, bits= 0..=4)]
+    #[overlay(bytes=10..=10, bits=0..=4)]
     pub group_number: u8,
 
-    #[overlay(bytes= 11..= 11, nested)]
+    #[overlay(bytes=11..=11, nested)]
     pub control: Control,
 }
 

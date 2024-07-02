@@ -6,16 +6,16 @@ use crate::scsi::enums::MediumType;
 #[overlay]
 #[derive(Clone, Copy, Eq, PartialEq, Debug)]
 pub struct ModeParameterHeader6 {
-    #[overlay(bytes= 0..= 0, bits= 0..=7)]
+    #[overlay(bytes=0..=0, bits=0..=7)]
     pub mode_data_length: u8,
 
-    #[overlay(bytes= 1..= 1, bits= 0..=7)]
+    #[overlay(bytes=1..=1, bits=0..=7)]
     pub medium_type: MediumType,
 
-    #[overlay(bytes= 2..= 2,  nested)]
+    #[overlay(bytes=2..=2,  nested)]
     pub device_specific_parameter: SbcDeviceSpecificParameter,
 
-    #[overlay(bytes= 3..= 3, bits= 0..=7)]
+    #[overlay(bytes=3..=3, bits=0..=7)]
     pub block_descriptor_length: u8,
 }
 impl Default for ModeParameterHeader6 {
@@ -44,19 +44,19 @@ impl ModeParameterHeader6 {
 #[overlay]
 #[derive(Clone, Copy, Eq, PartialEq, Debug)]
 pub struct ModeParameterHeader10 {
-    #[overlay(bytes= 0..= 1, bits= 0..=7)]
+    #[overlay(bytes=0..=1)]
     pub mode_data_length: u16,
 
-    #[overlay(bytes= 2..= 2, bits= 0..=7)]
+    #[overlay(bytes=2..=2, bits=0..=7)]
     pub medium_type: MediumType,
 
-    #[overlay(bytes= 3..= 3, nested)]
+    #[overlay(bytes=3..=3, nested)]
     pub device_specific_parameter: SbcDeviceSpecificParameter,
 
-    #[overlay(bytes= 4..= 4, bits= 0..=0)]
+    #[overlay(bytes=4..=4, bits=0..=0)]
     pub long_lba: bool,
 
-    #[overlay(bytes= 6..= 7, bits= 0..=7)]
+    #[overlay(bytes=6..=7)]
     pub block_descriptor_length: u16,
 }
 impl Default for ModeParameterHeader10 {
@@ -87,10 +87,10 @@ impl ModeParameterHeader10 {
 #[overlay]
 #[derive(Clone, Copy, Eq, PartialEq, Debug, Default)]
 pub struct SbcDeviceSpecificParameter {
-    #[overlay(bytes= 0..= 0, bits= 7..=7)]
+    #[overlay(bytes=0..=0, bits=7..=7)]
     pub write_protect: bool,
 
-    #[overlay(bytes= 0..= 0, bits= 4..=4)]
+    #[overlay(bytes=0..=0, bits=4..=4)]
     pub disable_page_out_and_force_unit_access_available: bool,
 }
 
@@ -106,16 +106,16 @@ pub enum PageCode {
 #[overlay]
 #[derive(Clone, Copy, Eq, PartialEq, Debug)]
 pub struct CachingModePage {
-    #[overlay(bytes= 0..= 0, bits= 0..=5)]
+    #[overlay(bytes=0..=0, bits=0..=5)]
     pub page_code: PageCode,
 
-    #[overlay(bytes= 1..= 1, bits= 0..=7)]
+    #[overlay(bytes=1..=1, bits=0..=7)]
     pub page_length: u8,
 
-    #[overlay(bytes= 2..= 2, bits= 2..=2)]
+    #[overlay(bytes=2..=2, bits=2..=2)]
     pub write_cache_enabled: bool,
 
-    #[overlay(bytes= 2..= 2, bits= 0..=0)]
+    #[overlay(bytes=2..=2, bits=0..=0)]
     pub read_cache_disable: bool,
 }
 impl Default for CachingModePage {

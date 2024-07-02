@@ -5,47 +5,47 @@ use crate::scsi::enums::{AdditionalSenseCode, ResponseCode, SenseKey};
 #[overlay]
 #[derive(Clone, Copy)]
 pub struct RequestSenseResponse {
-    #[overlay(bytes= 0..= 0, bits= 7..=7)]
+    #[overlay(bytes=0..=0, bits=7..=7)]
     pub valid: bool,
 
-    #[overlay(bytes= 0..= 0, bits= 0..=6)]
+    #[overlay(bytes=0..=0, bits=0..=6)]
     pub response_code: ResponseCode,
 
-    #[overlay(bytes= 2..= 2, bits= 7..=7)]
+    #[overlay(bytes=2..=2, bits=7..=7)]
     pub filemark: bool,
 
-    #[overlay(bytes= 2..= 2, bits= 6..=6)]
+    #[overlay(bytes=2..=2, bits=6..=6)]
     pub end_of_medium: bool,
 
-    #[overlay(bytes= 2..= 2, bits= 5..=5)]
+    #[overlay(bytes=2..=2, bits=5..=5)]
     pub incorrect_length_indicator: bool,
 
-    #[overlay(bytes= 2..= 2, bits= 0..=3)]
+    #[overlay(bytes=2..=2, bits=0..=3)]
     pub sense_key: SenseKey,
 
-    #[overlay(bytes= 3..= 6, bits= 0..=7)]
+    #[overlay(bytes=3..=6)]
     pub information: u32,
 
-    #[overlay(bytes= 7..= 7, bits= 0..=7)]
+    #[overlay(bytes=7..=7, bits=0..=7)]
     /// n-7
     pub additional_sense_length: u8,
 
-    #[overlay(bytes= 8..= 11, bits= 0..=7)]
+    #[overlay(bytes=8..=11, bits=0..=7)]
     pub command_specifc_information: u32,
 
-    #[overlay(bytes= 12..= 13, bits= 0..=7)]
+    #[overlay(bytes=12..=13, bits=0..=7)]
     pub additional_sense_code: AdditionalSenseCode,
 
-    #[overlay(bytes= 14..= 14, bits= 0..=7)]
+    #[overlay(bytes=14..=14, bits=0..=7)]
     pub field_replaceable_unit_code: u8,
 
-    #[overlay(bytes= 15..= 15, bits= 7..=7)]
+    #[overlay(bytes=15..=15, bits=7..=7)]
     pub sense_key_specific_valid: bool,
 
-    #[overlay(bytes= 15..= 17, bits= 0..=6)]
+    #[overlay(bytes=15..=17)]
     pub sense_key_specific: u32,
 
-    #[overlay(bytes= 18..= 252)]
+    #[overlay(bytes=18..=252)]
     pub additional_sense_data: [u8; 235],
 }
 
