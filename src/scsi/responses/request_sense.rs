@@ -31,7 +31,7 @@ pub struct RequestSenseResponse {
     pub additional_sense_length: u8,
 
     #[overlay(bytes=8..=11, bits=0..=7)]
-    pub command_specifc_information: u32,
+    pub command_specific_information: u32,
 
     #[overlay(bytes=12..=13, bits=0..=7)]
     pub additional_sense_code: AdditionalSenseCode,
@@ -72,7 +72,7 @@ impl Default for RequestSenseResponse {
         response.set_incorrect_length_indicator(Default::default());
         response.set_sense_key(Default::default());
         response.set_information(Default::default());
-        response.set_command_specifc_information(Default::default());
+        response.set_command_specific_information(Default::default());
         response.set_additional_sense_code(Default::default());
         response.set_field_replaceable_unit_code(Default::default());
         response.set_sense_key_specific(Default::default());
