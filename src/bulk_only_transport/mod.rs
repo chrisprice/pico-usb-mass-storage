@@ -58,7 +58,7 @@ impl<'d, D: Driver<'d>, M: RawMutex> BulkOnlyTransport<'d, D, M> {
             // TODO: the error handling is non-existent here
             let mut buf = [0u8; CBW_LEN];
             match self.endpoints.read_exact(&mut buf).await {
-                Ok(_) => {}
+                Ok(()) => {}
                 Err(ReadExactError::Other(e)) => {
                     warn!("Transport error reading CBW {}", e);
                     continue;
