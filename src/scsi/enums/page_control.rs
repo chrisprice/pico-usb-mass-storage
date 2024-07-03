@@ -1,5 +1,6 @@
 use num_enum::TryFromPrimitive;
 
+#[allow(clippy::enum_variant_names)]
 #[repr(u8)]
 #[derive(TryFromPrimitive, Clone, Copy, Eq, PartialEq, Debug, Default)]
 pub enum PageControl {

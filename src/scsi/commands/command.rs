@@ -63,8 +63,8 @@ impl Command {
     }
 }
 
-fn overlay<'a, T: overlay::Overlay + Copy>(cbw: &'a CommandBlock) -> Result<T, Error> {
-    T::overlay(cbw.bytes).map(|p| *p).map_err(|e| match e {
+fn overlay<T: overlay::Overlay + Copy>(cbw: &CommandBlock) -> Result<T, Error> {
+    T::overlay(cbw.bytes).copied().map_err(|e| match e {
         overlay::Error::InsufficientLength => Error::InsufficientDataForCommand,
     })
 }
