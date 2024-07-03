@@ -1,7 +1,8 @@
-use packing::Packed;
+use num_enum::TryFromPrimitive;
 
 #[allow(clippy::enum_variant_names)]
-#[derive(Clone, Copy, Eq, PartialEq, Debug, Packed, Default)]
+#[repr(u8)]
+#[derive(TryFromPrimitive, Clone, Copy, Eq, PartialEq, Debug, Default)]
 pub enum PageControl {
     /// Current values
     #[default]

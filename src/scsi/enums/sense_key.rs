@@ -1,6 +1,7 @@
-use packing::Packed;
+use num_enum::TryFromPrimitive;
 
-#[derive(Clone, Copy, Eq, PartialEq, Debug, Packed, defmt::Format, Default)]
+#[repr(u8)]
+#[derive(TryFromPrimitive, Clone, Copy, Eq, PartialEq, Debug, defmt::Format, Default)]
 pub enum SenseKey {
     /// Indicates that there is no specific sense key information to be reported. This may occur for a successful command or for a command that receives CHECK CONDITION status because one of the FILEMARK , EOM , or ILI bits is set to one.
     #[default]

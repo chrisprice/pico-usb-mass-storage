@@ -1,6 +1,7 @@
-use packing::Packed;
+use num_enum::TryFromPrimitive;
 
-#[derive(Clone, Copy, Eq, PartialEq, Debug, Packed, Default)]
+#[repr(u16)]
+#[derive(TryFromPrimitive, Clone, Copy, Eq, PartialEq, Debug, Default)]
 pub enum VersionDescriptor {
     #[default]
     None = 0x0000,

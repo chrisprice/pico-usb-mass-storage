@@ -1,6 +1,7 @@
-use packing::Packed;
+use num_enum::TryFromPrimitive;
 
-#[derive(Clone, Copy, Eq, PartialEq, Debug, Packed, Default)]
+#[repr(u8)]
+#[derive(TryFromPrimitive, Clone, Copy, Eq, PartialEq, Debug, Default)]
 pub enum PeripheralDeviceType {
     /// Direct access block device (e.g., magnetic disk)
     #[default]

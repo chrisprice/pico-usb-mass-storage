@@ -1,27 +1,26 @@
-use crate::scsi::{commands::Control, packing::ParsePackedStruct};
+use crate::scsi::commands::Control;
 use overlay_macro::overlay;
-use packing::Packed;
 
 #[overlay]
 #[derive(Clone, Copy, Eq, PartialEq, Default, Debug)]
 pub struct InquiryCommand {
-    #[bit_byte(7, 0, 0, 0)]
+    #[overlay(bytes=0..=0, bits=0..=7)]
     pub op_code: u8,
 
     /// If set, return vital data related to the page_code field
-    #[bit_byte(0, 0, 1, 1)]
+    #[overlay(bytes=1..=1, bits=0..=0)]
     pub enable_vital_product_data: bool,
 
     /// What kind of vital data to return
-    #[bit_byte(7, 0, 2, 2)]
+    #[overlay(bytes=2..=2, bits=0..=7)]
     pub page_code: u8,
 
     ///TODO: (check) Should match data_transfer_length in CBW
-    #[bit_byte(7, 0, 3, 4)]
+    #[overlay(bytes=3..=4)]
     pub allocation_length: u16,
 
-    #[bit_byte(7, 0, 5, 5)]
-    pub control: u8, // TODO: `Control`
+    #[overlay(bytes=5..=5, nested)]
+    pub control: Control,
 }
 
 /*

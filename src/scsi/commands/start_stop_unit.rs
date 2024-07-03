@@ -1,31 +1,31 @@
-use crate::scsi::{commands::Control, packing::ParsePackedStruct};
-use packing::Packed;
+use overlay_macro::overlay;
 
-#[derive(Clone, Copy, Eq, PartialEq, Debug, Packed)]
-#[packed(big_endian, lsb0)]
+use crate::scsi::commands::Control;
+
+#[overlay]
+#[derive(Clone, Copy, Eq, PartialEq, Debug)]
 pub struct StartStopUnitCommand {
-    #[pkd(7, 0, 0, 0)]
+    #[overlay(bytes=0..=0, bits=0..=7)]
     pub op_code: u8,
 
-    #[pkd(0, 0, 1, 1)]
+    #[overlay(bytes=1..=1, bits=0..=0)]
     pub immediate: bool,
 
-    #[pkd(3, 0, 3, 3)]
+    #[overlay(bytes=3..=3, bits=0..=3)]
     pub power_condition_modifier: u8,
 
-    #[pkd(7, 4, 4, 4)]
+    #[overlay(bytes=4..=4, bits=4..=7)]
     pub power_condition: u8,
 
-    #[pkd(2, 2, 4, 4)]
+    #[overlay(bytes=4..=4, bits=2..=2)]
     pub no_flush: bool,
 
-    #[pkd(1, 1, 4, 4)]
+    #[overlay(bytes=4..=4, bits=1..=1)]
     pub load_eject: bool,
 
-    #[pkd(0, 0, 4, 4)]
+    #[overlay(bytes=4..=4, bits=0..=0)]
     pub start: bool,
 
-    #[pkd(7, 0, 5, 5)]
+    #[overlay(bytes=5..=5, nested)]
     pub control: Control,
 }
-impl ParsePackedStruct for StartStopUnitCommand {}

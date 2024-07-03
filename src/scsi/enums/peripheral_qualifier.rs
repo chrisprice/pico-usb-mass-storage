@@ -1,6 +1,7 @@
-use packing::Packed;
+use num_enum::TryFromPrimitive;
 
-#[derive(Clone, Copy, Eq, PartialEq, Debug, Packed, Default)]
+#[repr(u8)]
+#[derive(TryFromPrimitive, Clone, Copy, Eq, PartialEq, Debug, Default)]
 pub enum PeripheralQualifier {
     /// A peripheral device having the specified peripheral device type is connected to this logical unit. If the device server is unable to determine whether or not a peripheral device is connected, it also shall use this peripheral qualifier. This peripheral qualifier does not mean that the peripheral device connected to the logical unit is ready for access.
     #[default]

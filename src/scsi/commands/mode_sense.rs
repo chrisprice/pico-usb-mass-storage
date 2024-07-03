@@ -1,9 +1,9 @@
+use overlay_macro::overlay;
+
 use crate::scsi::{
     commands::{CommandLength, Control},
     enums::PageControl,
-    packing::ParsePackedStruct,
 };
-use packing::Packed;
 
 /* After a logical unit reset, the device server shall respond in the following manner:
 a) if default values are requested, report the default values;
@@ -24,73 +24,71 @@ pub struct ModeSenseXCommand {
     pub page_control: PageControl,
 }
 
-#[derive(Clone, Copy, Eq, PartialEq, Debug, Packed)]
-#[packed(big_endian, lsb0)]
+#[overlay]
+#[derive(Clone, Copy, Eq, PartialEq, Debug)]
 pub struct ModeSense6Command {
-    #[pkd(7, 0, 0, 0)]
+    #[overlay(bytes=0..=0, bits=0..=7)]
     pub op_code: u8,
 
-    #[pkd(3, 3, 1, 1)]
+    #[overlay(bytes=1..=1, bits=3..=3)]
     pub disable_block_descriptors: bool,
 
-    #[pkd(7, 6, 2, 2)]
+    #[overlay(bytes=2..=2, bits=6..=7)]
     pub page_control: PageControl,
 
-    #[pkd(5, 0, 2, 2)]
+    #[overlay(bytes=2..=2, bits=0..=5)]
     pub page_code: u8,
 
-    #[pkd(7, 0, 3, 3)]
+    #[overlay(bytes=3..=3, bits=0..=7)]
     pub subpage_code: u8,
 
-    #[pkd(7, 0, 4, 4)]
+    #[overlay(bytes=4..=4, bits=0..=7)]
     pub allocation_length: u8,
 
-    #[pkd(7, 0, 5, 5)]
+    #[overlay(bytes=5..=5, nested)]
     pub control: Control,
 }
-impl ParsePackedStruct for ModeSense6Command {}
 impl From<ModeSense6Command> for ModeSenseXCommand {
     fn from(m: ModeSense6Command) -> Self {
         Self {
             command_length: CommandLength::C6,
-            page_control: m.page_control,
+            page_control: m.page_control().unwrap(), // FIXME: error handling here and below
         }
     }
 }
 
-#[derive(Clone, Copy, Eq, PartialEq, Debug, Packed)]
-#[packed(big_endian, lsb0)]
+#[overlay]
+#[derive(Clone, Copy, Eq, PartialEq, Debug)]
 pub struct ModeSense10Command {
-    #[pkd(7, 0, 0, 0)]
+    #[overlay(bytes=0..=0, bits=0..=7)]
     pub op_code: u8,
 
-    #[pkd(4, 4, 1, 1)]
+    #[overlay(bytes=1..=1, bits=4..=4)]
     pub long_lba_accepted: bool,
 
-    #[pkd(3, 3, 1, 1)]
+    #[overlay(bytes=1..=1, bits=3..=3)]
     pub disable_block_descriptors: bool,
 
-    #[pkd(7, 6, 2, 2)]
+    #[overlay(bytes=2..=2, bits=6..=7)]
     pub page_control: PageControl,
 
-    #[pkd(5, 0, 2, 2)]
+    #[overlay(bytes=2..=2, bits=0..=5)]
     pub page_code: u8,
 
-    #[pkd(7, 0, 3, 3)]
+    #[overlay(bytes=3..=3, bits=0..=7)]
     pub subpage_code: u8,
 
-    #[pkd(7, 0, 8, 9)]
+    #[overlay(bytes=8..=9)]
     pub allocation_length: u16,
 
-    #[pkd(7, 0, 10, 10)]
+    #[overlay(bytes=10..=10, nested)]
     pub control: Control,
 }
-impl ParsePackedStruct for ModeSense10Command {}
 impl From<ModeSense10Command> for ModeSenseXCommand {
     fn from(m: ModeSense10Command) -> Self {
         Self {
             command_length: CommandLength::C10,
-            page_control: m.page_control,
+            page_control: m.page_control().unwrap(),
         }
     }
 }

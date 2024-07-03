@@ -1,5 +1,6 @@
 // There are many more variants (see asc-num.txt) but these are the ones the scsi code
 // currently uses
+#[repr(u16)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, defmt::Format, Default)]
 pub enum AdditionalSenseCode {
     /// ASC 0x20, ASCQ: 0x0 - INVALID COMMAND OPERATION CODE
@@ -19,6 +20,7 @@ pub enum AdditionalSenseCode {
     LogicalBlockAddressOutOfRange,
 }
 
+#[allow(dead_code)]
 impl AdditionalSenseCode {
     /// Returns the ASC code for this variant
     pub fn asc(&self) -> u8 {
@@ -59,19 +61,18 @@ impl AdditionalSenseCode {
     }
 }
 
-impl packing::PackedSize for AdditionalSenseCode {
-    const BYTES: usize = 2;
+#[derive(Debug)]
+pub enum AdditionalSenseCodeError {
+    InvalidEnumDiscriminant,
 }
 
-impl packing::PackedBytes<[u8; 2]> for AdditionalSenseCode {
-    type Error = packing::Error;
+impl TryFrom<u16> for AdditionalSenseCode {
+    type Error = AdditionalSenseCodeError;
 
-    fn to_bytes<En: packing::Endian>(&self) -> Result<[u8; 2], Self::Error> {
-        Ok([self.asc(), self.ascq()])
-    }
+    fn try_from(value: u16) -> Result<Self, Self::Error> {
+        let asc = (value >> 8) as u8;
+        let ascq = value as u8;
 
-    fn from_bytes<En: packing::Endian>(bytes: [u8; 2]) -> Result<Self, Self::Error> {
-        let [asc, ascq] = bytes;
-        Self::from(asc, ascq).ok_or(packing::Error::InvalidEnumDiscriminant)
+        Self::from(asc, ascq).ok_or(AdditionalSenseCodeError::InvalidEnumDiscriminant)
     }
 }
