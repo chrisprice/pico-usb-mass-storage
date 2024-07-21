@@ -61,6 +61,7 @@ fatfs = { git = "https://github.com/rafalh/rust-fatfs", version = "0.4", default
 
 portable-atomic = { version = "1.5", features = ["critical-section"] }
 static_cell = "2"
+assign-resources = "0.4.1"
 
 overlay = "1.0"
 overlay_macro = "2.0"

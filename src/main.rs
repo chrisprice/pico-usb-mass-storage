@@ -1,9 +1,11 @@
 #![no_std]
 #![no_main]
 
+use assign_resources::assign_resources;
 use defmt::info;
 use defmt_rtt as _;
 use embassy_executor::Spawner;
+use embassy_rp::peripherals;
 use embassy_rp::usb::Driver;
 use embassy_sync::blocking_mutex::raw::NoopRawMutex;
 use embassy_usb::{Builder, Config};
@@ -30,14 +32,30 @@ static mut STORAGE: Storage = Storage::new();
 const USB_PACKET_SIZE: u16 = 64; // 8,16,32,64
 const MAX_LUN: u8 = 0; // max 0x0F
 
+assign_resources! {
+    wifi: Wifi {
+        pwr: PIN_23,
+        dio: PIN_24,
+        cs: PIN_25,
+        clk: PIN_29,
+        dma: DMA_CH0,
+        pio: PIO0
+    },
+    usb: Usb {
+        usb: USB
+    }
+}
+
 #[embassy_executor::main]
 async fn main(#[allow(unused_variables)] spawner: Spawner) {
     #[allow(static_mut_refs)]
     fat12_partition::init(unsafe { &mut STORAGE });
 
     let p = embassy_rp::init(Default::default());
-
-    let driver = Driver::new(p.USB, lib::Irqs);
+    let r = split_resources!(p);
+    let wifi = r.wifi;
+    let usb = r.usb.usb;
+    let driver = Driver::new(usb, lib::Irqs);
 
     let mut config = Config::new(0xabcd, 0xabcd);
     config.manufacturer = Some("Chris Price");
@@ -64,17 +82,17 @@ async fn main(#[allow(unused_variables)] spawner: Spawner) {
         //let fw = unsafe { core::slice::from_raw_parts(0x10100000 as *const u8, 230321) };
         //let clm = unsafe { core::slice::from_raw_parts(0x10140000 as *const u8, 4752) };
 
-        let pwr = Output::new(p.PIN_23, Level::Low);
-        let cs = Output::new(p.PIN_25, Level::High);
-        let mut pio = Pio::new(p.PIO0, lib::Irqs);
+        let pwr = Output::new(wifi.pwr, Level::Low);
+        let cs = Output::new(wifi.cs, Level::High);
+        let mut pio = Pio::new(wifi.pio, lib::Irqs);
         let spi = PioSpi::new(
             &mut pio.common,
             pio.sm0,
             pio.irq0,
             cs,
-            p.PIN_24,
-            p.PIN_29,
-            p.DMA_CH0,
+            wifi.dio,
+            wifi.clk,
+            wifi.dma,
         );
 
         //let mut blinky = Blinky::build(fw, clm, pwr, spi, spawner).await;
