@@ -139,15 +139,29 @@ where
 {
     for d in dir.iter().flatten() {
         let filename = core::str::from_utf8(d.short_file_name_as_bytes()).unwrap();
+        // Temporary ugly hackery for UCS2 to UTF8 (probably nonsense for non-Latin1)
+        let mut buf = [0_u8; 255];
+        let lfn = match d.long_file_name_as_ucs2_units() {
+            None => None,
+            Some(lfn) => {
+                for (i, c) in lfn.iter().enumerate() {
+                    buf[i] = (c & 0xff) as u8;
+                }
+                Some(unsafe { core::str::from_utf8_unchecked(&buf) })
+            }
+        };
         let size = d.len();
+
         info!(
-            "parent_name = \"{}\", file name = \"{}\", size = {}, depth = {}, is_file: {}, is_dir: {}",
+            "parent_name = \"{}\", file name = \"{}\", size = {}, depth = {}, is_file: {}, is_dir: {}, attributes: {:#02x}, lfn: {}",
             parent,
             filename,
             size,
             depth,
             d.is_file(),
-            d.is_dir()
+            d.is_dir(),
+            d.attributes().bits(),
+            lfn
         );
         if d.is_dir() && filename != "." && filename != ".." {
             log_dir(filename, &d.to_dir(), depth + 1);
