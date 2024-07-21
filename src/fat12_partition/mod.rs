@@ -128,17 +128,30 @@ pub fn log_fs(data: &mut [u8], blocks: u64, block_size: u64) {
         "type = {}, id = {}, label = {}",
         fat_type, volume_id, volume_label
     );
-    let root = fs.root_dir();
-    for d in root.iter().flatten() {
+    log_dir("/", &fs.root_dir(), 0);
+}
+
+fn log_dir<IO, TP, OCC>(parent: &str, dir: &fatfs::Dir<IO, TP, OCC>, depth: usize)
+where
+    IO: fatfs::ReadWriteSeek,
+    TP: fatfs::TimeProvider,
+    OCC: fatfs::OemCpConverter,
+{
+    for d in dir.iter().flatten() {
         let filename = core::str::from_utf8(d.short_file_name_as_bytes()).unwrap();
         let size = d.len();
         info!(
-            "file name = \"{}\", size = {}, is_file: {}, is_dir: {}",
+            "parent_name = \"{}\", file name = \"{}\", size = {}, depth = {}, is_file: {}, is_dir: {}",
+            parent,
             filename,
             size,
+            depth,
             d.is_file(),
             d.is_dir()
         );
+        if d.is_dir() && filename != "." && filename != ".." {
+            log_dir(filename, &d.to_dir(), depth + 1);
+        }
     }
 }
 
@@ -191,7 +204,8 @@ impl fatfs::Write for MemFS<'_> {
     }
 
     fn flush(&mut self) -> Result<(), Self::Error> {
-        unimplemented!()
+        error!("flush unimplemented");
+        Ok(())
     }
 }
 impl fatfs::Seek for MemFS<'_> {
