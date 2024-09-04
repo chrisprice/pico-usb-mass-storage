@@ -1,4 +1,4 @@
-//! ## A Rust crate & cli to convert bytes into human-readable values.
+//! ## Lifted from "A Rust crate & cli to convert bytes into human-readable values."
 
 //! It can return either KiB/MiB/GiB/TiB or KB/MB/GB/TB by disabling the `si-units` feature.
 //!
@@ -22,40 +22,6 @@ const UNIT: f64 = 1000.0;
 
 #[cfg(feature = "si-units")]
 const UNIT: f64 = 1024.0;
-
-#[cfg(feature = "std")]
-/// Converts bytes to human-readable values
-pub fn human_bytes<T: Into<f64>>(bytes: T) -> String {
-    let size = bytes.into();
-
-    if size <= 0.0 {
-        return "0 B".to_string();
-    }
-
-    let base = size.log10() / UNIT.log10();
-
-    #[cfg(feature = "fast")]
-    {
-        let mut buffer = ryu::Buffer::new();
-        let result = buffer
-            // Source for this hack: https://stackoverflow.com/a/28656825
-            .format((UNIT.powf(base - base.floor()) * 10.0).round() / 10.0)
-            .trim_end_matches(".0");
-
-        // Add suffix
-        [result, SUFFIX[base.floor() as usize]].join(" ")
-    }
-
-    #[cfg(not(feature = "fast"))]
-    {
-        let result = format!("{:.1}", UNIT.powf(base - base.floor()),)
-            .trim_end_matches(".0")
-            .to_owned();
-
-        // Add suffix
-        [&result, SUFFIX[base.floor() as usize]].join(" ")
-    }
-}
 
 pub fn write<T: Into<f64>>(mut writer: impl core::fmt::Write, bytes: T) {
     let mut size = bytes.into();
