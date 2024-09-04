@@ -7,7 +7,10 @@ use defmt_rtt as _;
 use embassy_executor::Spawner;
 use embassy_rp::peripherals;
 use embassy_rp::usb::Driver;
-use embassy_sync::blocking_mutex::raw::NoopRawMutex;
+use embassy_sync::{
+    blocking_mutex::raw::{NoopRawMutex, ThreadModeRawMutex},
+    signal::Signal,
+};
 use embassy_usb::{Builder, Config};
 use panic_probe as _;
 
@@ -21,6 +24,8 @@ mod storage;
 use storage::Storage;
 
 mod fat12_partition;
+mod screen;
+mod server;
 
 use pico_usb_mass_storage as lib;
 
@@ -31,6 +36,12 @@ static mut STORAGE: Storage = Storage::new();
 
 const USB_PACKET_SIZE: u16 = 64; // 8,16,32,64
 const MAX_LUN: u8 = 0; // max 0x0F
+
+pub enum DisplayState {
+    Address([u8; 4]),
+    FileSystem([u8; 11], u32),
+}
+pub static SIGNAL: Signal<ThreadModeRawMutex, DisplayState> = Signal::new();
 
 assign_resources! {
     wifi: Wifi {
@@ -43,6 +54,11 @@ assign_resources! {
     },
     usb: Usb {
         usb: USB
+    },
+    display: Display {
+        sda: PIN_0,
+        scl: PIN_1,
+        i2c: I2C0
     }
 }
 
@@ -55,6 +71,7 @@ async fn main(#[allow(unused_variables)] spawner: Spawner) {
     let r = split_resources!(p);
     let wifi = r.wifi;
     let usb = r.usb.usb;
+    let display = r.display;
     let driver = Driver::new(usb, lib::Irqs);
 
     let mut config = Config::new(0xabcd, 0xabcd);
@@ -96,8 +113,13 @@ async fn main(#[allow(unused_variables)] spawner: Spawner) {
         );
 
         //let mut blinky = Blinky::build(fw, clm, pwr, spi, spawner).await;
-        wifi::server::Server::build(fw, clm, pwr, spi, spawner).await
+        //let server = server::echo::Server::new();
+        let server = server::okay::Server::new();
+        wifi::server::Server::build(fw, clm, pwr, spi, spawner, server).await
     };
+
+    let mut display =
+        { screen::ssd1306::Screen::build(display.i2c, display.scl, display.sda).await };
 
     let mut device_descriptor = [0; 256];
     let mut config_descriptor = [0; 256];
@@ -138,11 +160,12 @@ async fn main(#[allow(unused_variables)] spawner: Spawner) {
     let usb_fut = usb.run();
 
     let usb_mass_storage_fut = usb_mass_storage.run();
+    let display_fut = display.run();
 
     #[cfg(feature = "wifi")]
     {
         let wifi_fut = wifi.run();
-        embassy_futures::join::join3(usb_fut, usb_mass_storage_fut, wifi_fut).await;
+        embassy_futures::join::join4(usb_fut, usb_mass_storage_fut, wifi_fut, display_fut).await;
     }
     #[cfg(not(feature = "wifi"))]
     {

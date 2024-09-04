@@ -1,7 +1,10 @@
 mod setup;
 
 use defmt::{error, info, Format};
+use embassy_rp::rom_data::memcpy;
 pub use setup::init;
+
+use crate::{DisplayState, SIGNAL};
 
 #[derive(Clone, Format)]
 pub struct Partition {
@@ -113,6 +116,7 @@ pub fn log_fs(data: &mut [u8], blocks: u64, block_size: u64) {
                 _ => "Unknown",
             };
             error!("Error: {}", s);
+            SIGNAL.signal(DisplayState::FileSystem([0; 11], 0));
             return;
         }
     };
@@ -121,14 +125,27 @@ pub fn log_fs(data: &mut [u8], blocks: u64, block_size: u64) {
         fatfs::FatType::Fat16 => "Fat16",
         fatfs::FatType::Fat32 => "Fat32",
     };
+    let free_space = match fs.stats() {
+        Ok(stats) => stats.free_clusters() * stats.cluster_size(),
+        Err(_) => 0,
+    };
     let volume_id = fs.volume_id();
     let volume_label: &str = core::str::from_utf8(fs.volume_label_as_bytes()).unwrap();
 
+    let mut volume_lbl: [u8; 11] = [0; 11];
+    unsafe {
+        memcpy(
+            volume_lbl.as_mut_ptr(),
+            fs.volume_label_as_bytes().as_ptr(),
+            11,
+        );
+    }
     info!(
         "type = {}, id = {}, label = {}",
         fat_type, volume_id, volume_label
     );
     log_dir("/", &fs.root_dir(), 0);
+    SIGNAL.signal(DisplayState::FileSystem(volume_lbl, free_space));
 }
 
 fn log_dir<IO, TP, OCC>(parent: &str, dir: &fatfs::Dir<IO, TP, OCC>, depth: usize)
