@@ -1,4 +1,4 @@
-use defmt::{error, info};
+use defmt::{debug, error, info};
 use embassy_sync::blocking_mutex::raw::RawMutex;
 use embassy_usb::driver::Driver;
 use embedded_io_async::ReadExactError;
@@ -284,7 +284,7 @@ impl<'scsi, BD: BlockDevice> bulk_only_transport::Handler for BulkHandler<'scsi,
             self.set_sense_from_error(e);
             CommandError::Invalid
         })?;
-        info!("scsi no-data command: {}", command);
+        debug!("scsi no-data command: {}", command);
 
         match command {
             Command::PreventAllowMediumRemoval(PreventAllowMediumRemovalCommand { .. }) => {

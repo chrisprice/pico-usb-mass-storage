@@ -1,3 +1,6 @@
+use crate::server::SocketServer;
+use crate::{DisplayState, SIGNAL};
+
 use cyw43::Control;
 use cyw43_pio::PioSpi;
 use defmt::{info, unwrap, warn};
@@ -11,7 +14,6 @@ use embassy_rp::{
     peripherals::{DMA_CH0, PIO0},
 };
 use embassy_time::{Duration, Timer};
-use embedded_io_async::Write;
 use static_cell::StaticCell;
 
 const WIFI_NETWORK: &str = env!("WIFI_NETWORK");
@@ -33,18 +35,26 @@ async fn net_task(stack: &'static Stack<cyw43::NetDriver<'static>>) -> ! {
     stack.run().await
 }
 
-pub struct Server<'a> {
+pub struct Server<'a, S>
+where
+    S: SocketServer + Sized,
+{
     control: Control<'static>,
     stack: &'a Stack<Device<'static>>,
+    server: S,
 }
 
-impl<'a> Server<'a> {
+impl<'a, S> Server<'a, S>
+where
+    S: SocketServer + Sized,
+{
     pub async fn build(
         fw: &[u8],
         clm: &[u8],
         pwr: Output<'static, PIN_23>,
         spi: PioSpi<'static, PIN_25, PIO0, 0, DMA_CH0>,
         spawner: Spawner,
+        server: S,
     ) -> Self {
         static STATE: StaticCell<cyw43::State> = StaticCell::new();
         let state = STATE.init(cyw43::State::new());
@@ -94,13 +104,22 @@ impl<'a> Server<'a> {
             Timer::after_millis(100).await;
         }
         info!("DHCP is now up!");
-        Self { control, stack }
+
+        let mut address: [u8; 4] = [0; 4];
+        address.copy_from_slice(stack.config_v4().unwrap().address.address().as_bytes());
+
+        SIGNAL.signal(DisplayState::Address(address));
+        Self {
+            control,
+            stack,
+            server,
+        }
     }
 
     pub async fn run(&mut self) -> ! {
         let mut rx_buffer = [0; 4096];
         let mut tx_buffer = [0; 4096];
-        let mut buf = [0; 4096];
+        //let mut buf = [0; 4096];
 
         loop {
             let mut socket = TcpSocket::new(self.stack, &mut rx_buffer, &mut tx_buffer);
@@ -116,29 +135,31 @@ impl<'a> Server<'a> {
             info!("Received connection from {:?}", socket.remote_endpoint());
             self.control.gpio_set(0, true).await;
 
-            loop {
-                let n = match socket.read(&mut buf).await {
-                    Ok(0) => {
-                        warn!("read EOF");
-                        break;
-                    }
-                    Ok(n) => n,
-                    Err(e) => {
-                        warn!("read error: {:?}", e);
-                        break;
-                    }
-                };
+            self.server.run(socket).await;
 
-                info!("rxd {}", core::str::from_utf8(&buf[..n]).unwrap());
+            // loop {
+            //     let n = match socket.read(&mut buf).await {
+            //         Ok(0) => {
+            //             warn!("read EOF");
+            //             break;
+            //         }
+            //         Ok(n) => n,
+            //         Err(e) => {
+            //             warn!("read error: {:?}", e);
+            //             break;
+            //         }
+            //     };
 
-                match socket.write_all(&buf[..n]).await {
-                    Ok(()) => {}
-                    Err(e) => {
-                        warn!("write error: {:?}", e);
-                        break;
-                    }
-                };
-            }
+            //     info!("rxd {}", core::str::from_utf8(&buf[..n]).unwrap());
+
+            //     match socket.write_all(&buf[..n]).await {
+            //         Ok(()) => {}
+            //         Err(e) => {
+            //             warn!("write error: {:?}", e);
+            //             break;
+            //         }
+            //     };
+            // }
         }
     }
 }

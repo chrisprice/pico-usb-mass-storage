@@ -1,7 +1,10 @@
 mod setup;
 
 use defmt::{error, info, Format};
+use embassy_rp::rom_data::memcpy;
 pub use setup::init;
+
+use crate::{DisplayState, SIGNAL};
 
 #[derive(Clone, Format)]
 pub struct Partition {
@@ -113,6 +116,7 @@ pub fn log_fs(data: &mut [u8], blocks: u64, block_size: u64) {
                 _ => "Unknown",
             };
             error!("Error: {}", s);
+            SIGNAL.signal(DisplayState::FileSystem([0; 11], 0));
             return;
         }
     };
@@ -121,24 +125,64 @@ pub fn log_fs(data: &mut [u8], blocks: u64, block_size: u64) {
         fatfs::FatType::Fat16 => "Fat16",
         fatfs::FatType::Fat32 => "Fat32",
     };
+    let free_space = match fs.stats() {
+        Ok(stats) => stats.free_clusters() * stats.cluster_size(),
+        Err(_) => 0,
+    };
     let volume_id = fs.volume_id();
     let volume_label: &str = core::str::from_utf8(fs.volume_label_as_bytes()).unwrap();
 
+    let mut volume_lbl: [u8; 11] = [0; 11];
+    unsafe {
+        memcpy(
+            volume_lbl.as_mut_ptr(),
+            fs.volume_label_as_bytes().as_ptr(),
+            11,
+        );
+    }
     info!(
         "type = {}, id = {}, label = {}",
         fat_type, volume_id, volume_label
     );
-    let root = fs.root_dir();
-    for d in root.iter().flatten() {
+    log_dir("/", &fs.root_dir(), 0);
+    SIGNAL.signal(DisplayState::FileSystem(volume_lbl, free_space));
+}
+
+fn log_dir<IO, TP, OCC>(parent: &str, dir: &fatfs::Dir<IO, TP, OCC>, depth: usize)
+where
+    IO: fatfs::ReadWriteSeek,
+    TP: fatfs::TimeProvider,
+    OCC: fatfs::OemCpConverter,
+{
+    for d in dir.iter().flatten() {
         let filename = core::str::from_utf8(d.short_file_name_as_bytes()).unwrap();
+        // Temporary ugly hackery for UCS2 to UTF8 (probably nonsense for non-Latin1)
+        let mut buf = [0_u8; 255];
+        let lfn = match d.long_file_name_as_ucs2_units() {
+            None => None,
+            Some(lfn) => {
+                for (i, c) in lfn.iter().enumerate() {
+                    buf[i] = (c & 0xff) as u8;
+                }
+                Some(unsafe { core::str::from_utf8_unchecked(&buf) })
+            }
+        };
         let size = d.len();
+
         info!(
-            "file name = \"{}\", size = {}, is_file: {}, is_dir: {}",
+            "parent_name = \"{}\", file name = \"{}\", size = {}, depth = {}, is_file: {}, is_dir: {}, attributes: {:#02x}, lfn: {}",
+            parent,
             filename,
             size,
+            depth,
             d.is_file(),
-            d.is_dir()
+            d.is_dir(),
+            d.attributes().bits(),
+            lfn
         );
+        if d.is_dir() && filename != "." && filename != ".." {
+            log_dir(filename, &d.to_dir(), depth + 1);
+        }
     }
 }
 
@@ -191,7 +235,8 @@ impl fatfs::Write for MemFS<'_> {
     }
 
     fn flush(&mut self) -> Result<(), Self::Error> {
-        unimplemented!()
+        error!("flush unimplemented");
+        Ok(())
     }
 }
 impl fatfs::Seek for MemFS<'_> {

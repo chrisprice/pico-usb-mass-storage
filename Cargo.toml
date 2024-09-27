@@ -57,10 +57,18 @@ cyw43-pio = { version = "0.1.0", features = ["defmt", "overclock"] }
 usb-device = { version = "0.2.9", features = ["defmt"] }
 num_enum = { version = "0.6.0", default-features = false }
 embedded-io-async = "0.6.1"
-fatfs = { git = "https://github.com/rafalh/rust-fatfs", version = "0.4", default-features = false }
+fatfs = { git = "https://github.com/rafalh/rust-fatfs", version = "0.4", default-features = false, features = [
+    "lfn",
+] }
+# An embedded-hal based driver for ePaper displays from Waveshare formerly published as eink-wave…
+epd-waveshare = { git = "https://github.com/caemor/epd-waveshare" }
+embedded-hal-async = { version = "1.0" }
+ssd1306 = "0.8.4"
+num-traits = { version = "0.2", default-features = false, features = ["libm"] }
 
 portable-atomic = { version = "1.5", features = ["critical-section"] }
 static_cell = "2"
+assign-resources = "0.4.1"
 
 overlay = "1.0"
 overlay_macro = "2.0"
@@ -79,7 +87,8 @@ bbb = []
 scsi = []
 ufi = []
 wifi = []
-default = ["bbb", "scsi"]
+si-units = []
+default = ["bbb", "scsi", "wifi", "si-units"]
 
 # cargo build/run --release
 [profile.release]
