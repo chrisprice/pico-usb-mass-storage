@@ -260,12 +260,13 @@ impl<'scsi, BD: BlockDevice> bulk_only_transport::Handler for BulkHandler<'scsi,
             Command::ModeSense(_) => todo!(),
             Command::ReadFormatCapacities(ReadFormatCapacitiesCommand { .. }) => {
                 let max_lba = self.block_device.block_count();
+                let block_size = BD::BLOCK_BYTES as u32;
 
                 let mut response = [0u8; 12];
                 response[3] = 0x08; // capacity list length
                 response[4..8].copy_from_slice(max_lba.to_be_bytes().as_slice());
-                response[9] = 0x02; // formatted media
-                response[10] = 0x02; // block size set to 512
+                response[8] = 0x02; // formatted media
+                response[9..12].copy_from_slice(&block_size.to_be_bytes().as_slice()[1..]); // block size
 
                 writer.write_all(&response).await?;
                 Ok(())
