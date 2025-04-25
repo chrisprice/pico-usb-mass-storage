@@ -14,6 +14,6 @@ pub struct ReadFormatCapacitiesCommand {
     #[overlay(bytes=7..=8)]
     pub allocation_length: u16,
 
-    #[overlay(bytes=11..=11, nested)]
+    #[overlay(bytes=9..=9, nested)]
     pub control: Control,
 }
