@@ -259,17 +259,17 @@ impl<'scsi, BD: BlockDevice> bulk_only_transport::Handler for BulkHandler<'scsi,
             }
             Command::ModeSense(_) => todo!(),
             Command::ReadFormatCapacities(ReadFormatCapacitiesCommand { .. }) => {
-                //let mut data = [0u8; 12];
-                //let _ = &mut data[0..4].copy_from_slice(&[
-                //    0x00, 0x00, 0x00, 0x08, // capacity list length
-                //]);
-                //let _ = &mut data[4..8].copy_from_slice(&u32::to_be_bytes(BLOCKS)); // number of blocks
-                //data[8] = 0x01; //unformatted media
-                //let block_length_be = u32::to_be_bytes(BLOCK_SIZE);
-                //data[9] = block_length_be[1];
-                //data[10] = block_length_be[2];
-                //data[11] = block_length_be[3];
-                todo!()
+                let max_lba = self.block_device.block_count();
+                let block_size = BD::BLOCK_BYTES as u32;
+
+                let mut response = [0u8; 12];
+                response[3] = 0x08; // capacity list length
+                response[4..8].copy_from_slice(max_lba.to_be_bytes().as_slice());
+                response[8] = 0x02; // formatted media
+                response[9..12].copy_from_slice(&block_size.to_be_bytes().as_slice()[1..]); // block size
+
+                writer.write_all(&response).await?;
+                Ok(())
             }
             _ => {
                 error!("invalid to-host command");
